@@ -175,6 +175,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .authbox h1{margin:4px 0 6px;font-size:24px}
 .authbox form{text-align:right}
 [hidden]{display:none!important}
+.linkbtn{border:0;background:none;color:var(--acc);font-weight:700;margin-top:14px;cursor:pointer;text-decoration:underline}
 </style>
 </head>
 <body>
@@ -795,7 +796,8 @@ function showAuth(mode, msg){
       <label>الرقم السري</label><input class="f" name="pw" type="password" dir="ltr" autocomplete="${setup ? 'new-password' : 'current-password'}" required maxlength="72">
       <div class="err" id="aerr">${esc(msg || '')}</div>
       <button class="btn green" type="submit" style="width:100%;margin-top:10px">${setup ? 'إنشاء الحساب' : 'دخول'}</button>
-    </form></div>`;
+    </form>${setup ? '' : '<button class="linkbtn" id="forgot" type="button">نسيت الرقم السري؟</button>'}</div>`;
+  const fg = $('#forgot'); if (fg) fg.onclick = showRecover;
   $('#af').onsubmit = async e => {
     e.preventDefault();
     const f = e.target, btn = f.querySelector('button'); btn.disabled = true; $('#aerr').textContent = '';
@@ -832,6 +834,32 @@ sb.auth.onAuthStateChange((ev, session) => {
   if (ev === 'SIGNED_IN' && session && session.user.id !== me) enterApp(session);
   if (ev === 'SIGNED_OUT'){ me = null; meP = null; owner = false; canAdmin = false; if (channel) sb.removeChannel(channel); channel = null; boot(); }
 });
+
+function showRecover(){
+  $('#auth').innerHTML = `<div class="authbox">
+    <div style="font-size:46px">🔑</div><h1>نسيت الرقم السري</h1>
+    <div class="sub"><b>موظف؟</b> كلّم المالك يغيّر لك رقمك السري من صفحة الموظفين.<br><b>المالك؟</b> اكتب رمز الاسترجاع ورقم سري جديد.</div>
+    <form id="rf">
+      <label>رمز الاسترجاع</label><input class="f" name="code" dir="ltr" inputmode="numeric" required maxlength="8" placeholder="8 أرقام">
+      <label>الرقم السري الجديد</label><input class="f" name="pw" type="password" dir="ltr" autocomplete="new-password" required maxlength="72" placeholder="6 أحرف أو أكثر">
+      <div class="err" id="aerr"></div>
+      <button class="btn green" type="submit" style="width:100%;margin-top:10px">تغيير الرقم السري</button>
+    </form>
+    <button class="linkbtn" id="back2" type="button">رجوع لتسجيل الدخول</button></div>`;
+  $('#back2').onclick = () => showAuth('login');
+  $('#rf').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, btn = f.querySelector('button'); btn.disabled = true; $('#aerr').textContent = '';
+    try {
+      const r = await callAdmin({ action: 'recover', code: f.code.value.trim(), password: f.pw.value });
+      const { error } = await sb.auth.signInWithPassword({ email: r.username + '@' + EMAIL_DOMAIN, password: f.pw.value });
+      if (error) showAuth('login', 'تغيّر الرقم السري. اسم المستخدم حقك: ' + r.username);
+    } catch(err){
+      $('#aerr').textContent = err.message === 'bad_code' ? 'رمز الاسترجاع غلط.' : err.message === 'recover_locked' ? 'انقفل الاسترجاع بسبب محاولات غلط كثيرة. كلّم اللي سوّى لك البرنامج.' : adminErr(err);
+      btn.disabled = false;
+    }
+  };
+}
 
 /* ---------- حسابي ---------- */
 function openAccount(){
