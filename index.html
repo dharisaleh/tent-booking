@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>حجز الخيام</title>
+<meta name="theme-color" content="#faf6ef">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="حجز الخيام">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛺</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#faf6ef;--card:#fff;--ink:#2b2118;--mut:#8a7d70;--line:#eadfce;--acc:#8a5a2b;--acc2:#f3e6d3;
+--free:#1e8a4c;--freebg:#e7f6ec;--busy:#c63d3d;--busybg:#fdecec;--bk:#1e9e52;--bkbg:#e3f6ea;--freec:#9aa0a6;--freebg2:#eef0f2;--soon:#e2a400;--soonbg:#fff6d6;--over:#d93636;--overbg:#fde3e3;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;font-family:Tajawal,system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent}
+button,input,textarea{font:inherit}
+.wrap{max-width:820px;margin:0 auto;padding:14px 14px 90px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+header h1{font-size:22px;margin:0;flex:1;font-weight:800}
+header h1 span{color:var(--acc)}
+.icon{border:1px solid var(--line);background:var(--card);border-radius:12px;width:42px;height:42px;font-size:19px;cursor:pointer}
+.datebar{display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px}
+.datebar .lbl{flex:1;text-align:center}
+.datebar .lbl b{display:block;font-size:17px}
+.datebar .lbl input{border:0;background:transparent;color:var(--mut);font-size:13px;text-align:center}
+.nav{border:0;background:var(--acc2);color:var(--acc);border-radius:10px;width:40px;height:40px;font-size:18px;cursor:pointer;font-weight:700}
+.todayBtn{border:0;background:var(--acc);color:#fff;border-radius:10px;padding:0 12px;height:40px;cursor:pointer;font-weight:700}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px;scrollbar-width:none}
+.tab{flex:none;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+.tab small{color:var(--free);font-weight:700;margin-inline-start:4px}
+.tab.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.tab.on small{color:#d9f5e3}
+.stats{display:flex;gap:10px;margin:10px 0}
+.stat{flex:1;border-radius:14px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;font-weight:700}
+.stat b{font-size:24px}
+.stat.f{background:var(--freebg);color:var(--free)}
+.stat.b{background:var(--busybg);color:var(--busy)}
+.status{color:var(--mut);text-align:center;padding:6px;font-size:14px;min-height:1em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tent{border-radius:16px;padding:12px;cursor:pointer;border:2px solid transparent;text-align:right;min-height:104px;display:flex;flex-direction:column;gap:4px;background:var(--card)}
+.tent .n{font-size:18px;font-weight:800;display:flex;justify-content:space-between;align-items:center}
+.pill{font-size:12px;border-radius:999px;padding:2px 9px;font-weight:700}
+.tent.free{border-color:#bfe6cd;background:var(--freebg)}
+.tent.free .pill{background:var(--free);color:#fff}
+.tent.busy{border-color:#f1c2c2;background:var(--busybg)}
+.tent.busy .pill{background:var(--busy);color:#fff}
+.tent .who{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tent .meta{color:var(--mut);font-size:13px}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:16px;padding:28px;text-align:center;color:var(--mut)}
+.empty button{margin-top:12px}
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;background:var(--acc);color:#fff}
+.btn.ghost{background:var(--acc2);color:var(--acc)}
+.btn.danger{background:var(--busybg);color:var(--busy)}
+.btn.green{background:var(--free)}
+.btn:disabled{opacity:.5}
+.back{position:fixed;inset:0;background:rgba(30,20,10,.45);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.back.open{display:flex}
+.sheet{background:var(--card);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:18px 18px 28px;max-height:90vh;overflow:auto;animation:up .18s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+.sheet h2{margin:0 0 4px;font-size:20px}
+.sheet .sub{color:var(--mut);margin-bottom:14px;font-size:14px}
+label{display:block;font-size:14px;font-weight:700;margin:10px 0 4px}
+input.f,textarea.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fffdf9;font-size:16px}
+textarea.f{min-height:64px;resize:vertical}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+.actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.actions .btn{flex:1}
+.kv{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:9px 0;gap:12px}
+.kv span{color:var(--mut)}
+.kv b{text-align:left;direction:auto;word-break:break-word}
+.err{color:var(--busy);font-size:14px;margin-top:8px;min-height:1em}
+.cafeRow{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px}
+.cafeRow div{flex:1}
+.cafeRow small{color:var(--mut);display:block}
+.mini{border:0;background:var(--acc2);color:var(--acc);border-radius:9px;padding:7px 10px;cursor:pointer;font-weight:700}
+.mini.d{background:var(--busybg);color:var(--busy)}
+hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+.bar{display:flex;gap:8px;align-items:center;margin:4px 0 10px;flex-wrap:wrap}
+.seg{display:flex;background:var(--acc2);border-radius:12px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--acc);padding:7px 12px;border-radius:9px;cursor:pointer;font-weight:700}
+.seg button.on{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.bar .sp{flex:1}
+.map{position:relative;width:100%;aspect-ratio:1/1.1;max-height:78vh;margin:0 auto;border-radius:20px;border:2px solid var(--line);
+  background-color:#f4e9d6;background-image:radial-gradient(#e3d2b5 1.2px,transparent 1.2px);background-size:22px 22px;overflow:hidden;touch-action:manipulation}
+.map.edit{border:2px dashed var(--acc);touch-action:none}
+.pt{position:absolute;transform:translate(-50%,-50%);border:0;background:transparent;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;width:var(--s,64px);user-select:none;-webkit-user-select:none}
+.pt svg{width:calc(var(--s,64px)*.72);height:calc(var(--s,64px)*.56);filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
+.pt .roof{fill:currentColor}.pt .door{fill:rgba(255,255,255,.55)}
+.pt b{position:absolute;top:calc(var(--s,64px)*.23);font-size:calc(var(--s,64px)*.2 + 1px);color:#fff;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.pt small{font-size:11px;font-weight:700;background:rgba(255,255,255,.92);border-radius:6px;padding:0 5px;margin-top:1px;max-width:calc(var(--s,64px) + 6px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink)}
+.pt.free{color:var(--free)}.pt.busy{color:var(--busy)}
+.map.edit .pt,.map.edit .mark{cursor:grab}
+.map.edit .pt svg{outline:2px dashed rgba(138,90,43,.35);outline-offset:3px;border-radius:6px}
+.mark{position:absolute;transform:translate(-50%,-50%);background:#5b4636;color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:4px 9px;white-space:nowrap;user-select:none;-webkit-user-select:none;display:flex;gap:6px;align-items:center}
+.mark i{font-style:normal;background:var(--busy);border-radius:50%;width:18px;height:18px;display:grid;place-items:center;cursor:pointer;font-size:12px}
+.editbar{background:var(--card);border:1px solid var(--acc);border-radius:14px;padding:10px;margin-bottom:10px}
+.editbar p{margin:0 0 8px;font-size:14px;color:var(--mut)}
+.editbar .row input{min-width:0}
+.legend{display:flex;gap:14px;justify-content:center;font-size:13px;color:var(--mut);margin-top:8px}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:5px;vertical-align:middle;background:var(--c)}
+
+.stats{flex-wrap:wrap}
+.stat.m{background:var(--acc2);color:var(--acc)}
+.stat small{font-size:12px;font-weight:700}
+.hours{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.hc{flex:none;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:6px 10px;cursor:pointer;text-align:center;min-width:50px}
+.hc b{display:block;font-size:14px}
+.hc small{font-size:11px;color:var(--free);font-weight:700}
+.hc.full small{color:var(--busy)}
+.hc.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.hc.on small{color:#fff}
+.strip{display:flex;gap:1px;margin-top:2px;direction:rtl}
+.strip i{display:block;width:6px;height:6px;border-radius:1px;background:#8fd1a9}
+.strip i.b{background:#e07a7a}
+.pt .strip{width:calc(var(--s,64px) - 6px);overflow:hidden}.pt .strip i{flex:1;width:auto;min-width:0}
+.strip i.c{outline:1.5px solid var(--ink);outline-offset:0}
+.tent .strip i{width:auto;flex:1;height:8px;border-radius:2px}
+.tl{display:flex;gap:3px;margin:8px 0 2px;direction:rtl}
+.tl button{flex:1;border:0;border-radius:6px;height:38px;cursor:pointer;font-size:11px;font-weight:700;padding:0;background:var(--freebg);color:var(--free)}
+.tl button.b{background:var(--busy);color:#fff;cursor:default}
+.bk{border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-top:10px}
+.bk .h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.bk .h b{font-size:16px}
+.bk .t{color:var(--acc);font-weight:800}
+.bk .m{color:var(--mut);font-size:13px;margin-top:4px;line-height:1.6}
+.bk .actions{margin-top:8px}
+.bk .actions .btn{padding:8px 10px;font-size:14px}
+.price{background:var(--acc2);color:var(--acc);border-radius:12px;padding:10px 12px;margin-top:12px;display:flex;justify-content:space-between;font-weight:800}
+select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fffdf9;font-size:16px}
+.access{font-size:13px;font-weight:700;border-radius:10px;padding:6px 10px;margin-bottom:8px;display:inline-block}
+.access:empty{display:none}
+.access.ok{background:var(--freebg);color:var(--free)}
+.access.ro{background:#eef0f3;color:#5b6470}
+.mgrs{display:flex;flex-wrap:wrap;gap:6px}
+.chk{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;padding:6px 10px;margin:0;font-weight:500}
+.chk small{color:var(--mut)}
+.cafeRow small.mn{color:var(--acc)}
+
+/* حالات الخيام */
+.pt.free{color:var(--freec)}.pt.busy{color:var(--bk)}.pt.soon{color:var(--soon)}.pt.over{color:var(--over)}
+.pt.over svg,.pt.over b{animation:blink 1s steps(2,start) infinite}
+@keyframes blink{to{visibility:hidden}}
+@keyframes pulse{50%{background:#fff;border-color:var(--over)}}
+.tent.free{border-color:#dde0e4;background:var(--freebg2)}.tent.free .pill{background:var(--freec)}
+.tent.busy{border-color:#b7e4c7;background:var(--bkbg)}.tent.busy .pill{background:var(--bk)}
+.tent.soon{border-color:#f3d77a;background:var(--soonbg)}.tent.soon .pill{background:var(--soon)}
+.tent.over{border-color:var(--over);background:var(--overbg);animation:pulse 1s infinite}.tent.over .pill{background:var(--over)}
+.strip i{background:#d3d6da}.strip i.b{background:#3fb36b}
+.tl button{background:var(--freebg2);color:#6b7177}.tl button.b{background:var(--bk)}
+.stat.f{background:var(--freebg2);color:#5f666d}.stat.b{background:var(--bkbg);color:var(--bk)}
+.stat.y{background:var(--soonbg);color:#a87a00}.stat.o{background:var(--overbg);color:var(--over);animation:pulse 1s infinite;border:1px solid transparent}
+.tab small{color:#6b7177}
+.hc small{color:#6b7177}
+.legend .lo::before{animation:blink 1s steps(2,start) infinite}
+.flag{font-size:13px;font-weight:800;border-radius:8px;padding:4px 8px;margin-bottom:6px;display:inline-block}
+.flag.over{background:var(--overbg);color:var(--over);animation:pulse 1s infinite;border:1px solid transparent}
+.flag.soon{background:var(--soonbg);color:#a87a00}
+.flag.done{background:var(--freebg2);color:#5f666d}
+.map.crowd .pt small{font-size:10px;padding:0 3px}
+
+.strip i{font-style:normal;font-weight:700;color:#5f666d;text-align:center;overflow:hidden}
+.strip i.b{color:#fff}
+.pt .strip{display:grid;grid-template-columns:repeat(5,11px);gap:1px;width:auto;margin-top:2px;justify-content:center}
+.pt .strip i{width:11px;height:11px;font-size:8px;line-height:11px;border-radius:2px;flex:none}
+.tent .strip i{height:16px;font-size:10px;line-height:16px;border-radius:3px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{flex-wrap:nowrap;gap:6px;min-width:0}
+.stat.y,.stat.o{grid-column:1/-1}
+#auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.authbox{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:24px;width:100%;max-width:380px;text-align:center}
+.authbox h1{margin:4px 0 6px;font-size:24px}
+.authbox form{text-align:right}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="auth" hidden></div>
+<div class="wrap" id="app" hidden>
+  <header>
+    <h1>⛺ حجز <span>الخيام</span></h1>
+    <button class="icon" id="acct" title="حسابي">👤</button>
+    <button class="icon" id="gear" title="الإعدادات" hidden>⚙️</button>
+  </header>
+
+  <div class="datebar">
+    <button class="nav" id="prev" title="اليوم السابق">→</button>
+    <div class="lbl"><b id="dlabel"></b><input type="date" id="date"></div>
+    <button class="nav" id="next" title="اليوم التالي">←</button>
+    <button class="todayBtn" id="today">اليوم</button>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="stats" id="stats"></div>
+  <div class="hours" id="hours"></div>
+  <div class="access" id="access"></div>
+  <div class="bar" id="bar" hidden>
+    <div class="seg"><button data-v="map">🗺️ كروكي</button><button data-v="list">▦ قائمة</button></div>
+    <span class="sp"></span>
+    <button class="mini" id="editMap" hidden>✏️ ترتيب الكروكي</button>
+  </div>
+  <div id="editbar"></div>
+  <div class="status" id="status">جاري التحميل…</div>
+  <div id="grid"></div>
+</div>
+
+<div class="back" id="back"><div class="sheet" id="sheet"></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const z = n => String(n).padStart(2,'0');
+const dstr = d => d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
+const shift = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return dstr(d); };
+const money = v => (Math.round(Number(v||0)*1000)/1000).toLocaleString('en-US',{maximumFractionDigits:3}) + ' د.ك';
+function hrsL(n){ return n===1?'ساعة':n===2?'ساعتين':(n<=10? n+' ساعات' : n+' ساعة'); }
+function hl(h){ h = ((h % 24) + 24) % 24; if (h === 0) return '12ص'; if (h === 12) return '12ظ'; return h < 12 ? h + 'ص' : (h - 12) + 'م'; }
+
+const SB_URL = 'https://xpavokpljazifycuuoko.supabase.co';
+const SB_KEY = 'sb_publishable_vPWhIUSBGg3nQLrwoW8B1Q_Q3MsS1Jj';
+const EMAIL_DOMAIN = 'staff.tent-booking.app';
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
+let db = true, me = null, meP = null, canAdmin = false, owner = false, readOnly = false, people = {};
+function canBook(c){ return !!c && !!meP && (owner || (meP.can_book && meP.cafe_id === c.id)); }
+async function q(p){ const { data, error } = await p; if (error) throw error; return data; }
+function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.tent, start: r.start_h, end: r.end_h, name: r.name,
+  phone: r.phone || '', people: r.people, note: r.note || '', rate: Number(r.rate), price: Number(r.price), done: r.done,
+  by: r.created_by, at: r.created_at ? new Date(r.created_at).getTime() : 0 }; }
+function normC(r){ return { id: r.id, name: r.name, tents: r.tents, price: Number(r.price), open: r.open, close: r.close, layout: r.layout || {}, order: r.sort }; }
+function pname(id){ return (people[id] && people[id].display_name) || 'موظف'; }
+let cafes = [], bookings = [], selCafe = null, selDate = dstr(new Date()), selHour = null;
+let cafesLoaded = false, unsubB = null, loadTimer = null;
+let view = (() => { try { return localStorage.getItem('tentView') || 'map'; } catch(_){ return 'map'; } })();
+let editing = false, draft = null, dragging = false;
+
+function setStatus(t){ $('#status').textContent = t || ''; }
+function cfg(c){
+  const open = Number.isFinite(Number(c.open)) && c.open !== undefined ? Number(c.open) : 15;
+  let close = Number.isFinite(Number(c.close)) && c.close !== undefined ? Number(c.close) : 24;
+  if (close <= open) close = open + 1;
+  const price = c.price !== undefined && Number(c.price) >= 0 ? Number(c.price) : 2;
+  return { open, close, price };
+}
+function tentsOf(c){ return Math.max(0, Math.min(200, Number(c.tents)||0)); }
+function bStart(b, c){ return Number.isFinite(Number(b.start)) && b.start !== null ? Number(b.start) : cfg(c).open; }
+function bEnd(b, c){ return Number.isFinite(Number(b.end)) && b.end !== null ? Number(b.end) : cfg(c).close; }
+function tentBookings(c, n){ return bookings.filter(b => b.cafeId === c.id && Number(b.tent) === n && b.name).sort((a,b) => bStart(a,c) - bStart(b,c)); }
+function bookingAt(c, n, h){ return tentBookings(c, n).find(b => bStart(b,c) <= h && h < bEnd(b,c)); }
+function curHour(c){
+  const { open, close } = cfg(c);
+  if (selHour !== null && selHour >= open && selHour < close) return selHour;
+  if (selDate === dstr(new Date())){ const h = new Date().getHours(); if (h >= open && h < close) return h; }
+  return open;
+}
+
+const SOON = 15; // دقايق قبل النهاية = أصفر
+function nowMin(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+function isLive(c){ return selDate === dstr(new Date()) && curHour(c) === new Date().getHours(); }
+function tentState(c, n, H){
+  if (isLive(c)){
+    const m = nowMin(), list = tentBookings(c, n);
+    const act = list.find(b => bStart(b,c) * 60 <= m && m < bEnd(b,c) * 60);
+    if (act) return { s: bEnd(act,c) * 60 - m <= SOON ? 'soon' : 'busy', b: act, left: bEnd(act,c) * 60 - m };
+    const over = list.filter(b => !b.done && bEnd(b,c) * 60 <= m).pop();
+    if (over) return { s: 'over', b: over };
+    return { s: 'free' };
+  }
+  const b = bookingAt(c, n, H); return b ? { s: 'busy', b } : { s: 'free' };
+}
+const ST_LABEL = { free: 'فاضية', busy: 'محجوزة', soon: 'قرب يخلص', over: 'خلص الوقت' };
+function dateLabel(){
+  const d = parse(selDate);
+  let t = d.toLocaleDateString('ar-KW-u-nu-latn',{weekday:'long',day:'numeric',month:'long'});
+  const today = dstr(new Date());
+  if (selDate === today) t = 'اليوم · ' + t;
+  else if (selDate === shift(today,1)) t = 'بكرة · ' + t;
+  else if (selDate === shift(today,-1)) t = 'أمس · ' + t;
+  $('#dlabel').textContent = t; $('#date').value = selDate;
+}
+
+function strip(c, n, H){
+  const { open, close } = cfg(c); let s = '<span class="strip">';
+  for (let h = open; h < close; h++) s += `<i class="${bookingAt(c,n,h) ? 'b' : ''} ${h === H ? 'c' : ''}">${(h % 12) || 12}</i>`;
+  return s + '</span>';
+}
+
+function render(){
+  dateLabel();
+  $('#gear').hidden = !canAdmin;
+  const tabs = $('#tabs'), grid = $('#grid'), stats = $('#stats'), hours = $('#hours');
+  if (!cafesLoaded || !cafes.length){ $('#bar').hidden = true; $('#editbar').innerHTML = ''; $('#access').textContent = ''; hours.innerHTML = ''; stats.innerHTML = ''; tabs.innerHTML = ''; }
+  if (!cafesLoaded){ grid.innerHTML = ''; return; }
+  if (!cafes.length){
+    grid.className = '';
+    grid.innerHTML = `<div class="empty">ما في مقاهي مضافة للحين.${canAdmin ? '<br><button class="btn" id="addFirst">➕ أضف أول مقهى</button>' : '<br>كلّم المسؤول يضيف المقاهي.'}</div>`;
+    const a = $('#addFirst'); if (a) a.onclick = openSettings;
+    return;
+  }
+  if (!selCafe || !cafes.find(c => c.id === selCafe)) selCafe = cafes[0].id;
+  tabs.innerHTML = cafes.map(c => {
+    const H = curHour(c), total = tentsOf(c); let free = 0;
+    for (let n = 1; n <= total; n++) if (tentState(c, n, H).s === 'free') free++;
+    return `<button class="tab ${c.id===selCafe?'on':''}" data-id="${esc(c.id)}">${esc(c.name)}<small>${free} فاضية</small></button>`;
+  }).join('');
+  tabs.querySelectorAll('.tab').forEach(b => b.onclick = () => { if (b.dataset.id === selCafe) return; selCafe = b.dataset.id; if (editing) stopEdit(); else render(); });
+
+  const cafe = cafes.find(c => c.id === selCafe), total = (editing && draft) ? draft.count : tentsOf(cafe), C = cfg(cafe), H = curHour(cafe);
+  const cnt = { free: 0, busy: 0, soon: 0, over: 0 };
+  for (let n = 1; n <= total; n++) cnt[tentState(cafe, n, H).s]++;
+  const live = isLive(cafe);
+  const income = bookings.filter(b => b.cafeId === cafe.id && b.name).reduce((s,b) => s + (Number(b.price)||0), 0);
+  const when = live ? 'الحين' : 'الساعة ' + hl(H);
+  stats.innerHTML = `<div class="stat f"><span>فاضية<br><small>${when}</small></span><b>${cnt.free}</b></div>
+    <div class="stat b"><span>محجوزة<br><small>${when}</small></span><b>${cnt.busy + cnt.soon}</b></div>
+    <div class="stat m"><span>دخل اليوم</span><b style="font-size:18px">${money(income)}</b></div>
+    ${cnt.soon ? `<div class="stat y"><span>⏳ قرب يخلص وقتها</span><b>${cnt.soon}</b></div>` : ''}
+    ${cnt.over ? `<div class="stat o"><span>⏰ خلص وقتها</span><b>${cnt.over}</b></div>` : ''}`;
+  let hc = '';
+  for (let h = C.open; h < C.close; h++){
+    let free = 0; for (let n = 1; n <= total; n++) if (!bookingAt(cafe, n, h)) free++;
+    hc += `<button class="hc ${h===H?'on':''} ${free===0?'full':''}" data-h="${h}"><b>${hl(h)}</b><small>${free===0 ? 'فل' : free + ' فاضية'}</small></button>`;
+  }
+  hours.innerHTML = total ? hc : '';
+  hours.querySelectorAll('.hc').forEach(b => b.onclick = () => { selHour = Number(b.dataset.h); render(); });
+
+  const acc = $('#access');
+  acc.className = 'access ' + (canBook(cafe) ? 'ok' : 'ro');
+  acc.textContent = owner ? '👑 انت المالك: تقدر تحجز بكل المقاهي' : canBook(cafe) ? '✅ ' + (meP ? meP.display_name + ': ' : '') + 'تقدر تحجز بهالمقهى' : '👁️ اطلاع فقط بهالمقهى';
+  $('#bar').hidden = false;
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+  $('#editMap').hidden = !canAdmin || view !== 'map' || editing || !total;
+  renderEditbar();
+  if (!total){ grid.className = ''; grid.innerHTML = `<div class="empty">هالمقهى ما له خيام. عدّل عدد الخيام من ⚙️</div>`; return; }
+  if (view === 'map') return renderMap(cafe, total, H);
+
+  grid.className = 'grid';
+  let html = '';
+  for (let n = 1; n <= total; n++){
+    const st = tentState(cafe, n, H), all = tentBookings(cafe, n);
+    const lines = all.map(x => `${hl(bStart(x,cafe))}–${hl(bEnd(x,cafe))} ${esc(x.name)}`).join('<br>');
+    html += `<button class="tent ${st.s}" data-n="${n}"><div class="n">خيمة ${n}<span class="pill">${ST_LABEL[st.s]}</span></div>
+      ${strip(cafe, n, H)}<div class="meta">${lines || (canBook(cafe) ? 'ما عليها حجز · اضغط للحجز' : 'ما عليها حجز')}</div></button>`;
+  }
+  grid.innerHTML = html + `<div style="grid-column:1/-1"><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span>${live ? '<span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span>' : ''}</div></div>`;
+  bindTentClicks(cafe, '.tent');
+}
+
+function bindTentClicks(cafe, sel){
+  $('#grid').querySelectorAll(sel).forEach(el => el.onclick = () => { if (!editing) openTent(cafe, Number(el.dataset.n)); });
+}
+
+/* ---------- sheets ---------- */
+function openSheet(html){ $('#sheet').innerHTML = html; $('#back').classList.add('open'); }
+function closeSheet(){ $('#back').classList.remove('open'); }
+$('#back').onclick = e => { if (e.target.id === 'back') closeSheet(); };
+
+function errText(e){
+  if (e && e.message === 'taken') return 'هالوقت محجوز على هالخيمة. اختار وقت ثاني.';
+  if (e && e.message === 'busy') return 'في أحد يحجز هالخيمة الحين، جرب بعد ثواني.';
+  if (e && e.message === 'range') return 'وقت النهاية لازم يكون بعد وقت البداية.';
+  const c = e && e.code;
+  if (c === '23P01') return 'هالوقت محجوز على هالخيمة. اختار وقت ثاني.';
+  if (c === '42501' || /row-level security|permission/i.test((e && e.message) || '')) return 'ما عندك صلاحية تعدّل هني.';
+  return 'صار خطأ، تأكد من النت وجرب مرة ثانية.';
+}
+
+let openTentRef = null;
+function openTent(cafe, n){
+  openTentRef = { cafe: cafe.id, n };
+  const C = cfg(cafe), list = tentBookings(cafe, n), RO = !canBook(cafe);
+  let tl = '';
+  for (let h = C.open; h < C.close; h++){
+    const b = bookingAt(cafe, n, h);
+    tl += `<button class="${b ? 'b' : ''}" data-h="${h}" ${b || RO ? 'disabled' : ''}>${hl(h)}</button>`;
+  }
+  const live = selDate === dstr(new Date()), m = nowMin();
+  const cards = list.map(b => {
+    const hrs = bEnd(b,cafe) - bStart(b,cafe), endM = bEnd(b,cafe) * 60, stM = bStart(b,cafe) * 60;
+    let flag = '', extra = '';
+    if (live && !b.done && endM <= m){
+      flag = `<div class="flag over">⏰ خلص وقت الحجز</div>`;
+      if (!RO) extra = `<button class="btn green" data-done="${esc(b.id)}">✅ طلع الزبون</button><button class="btn ghost" data-ext="${esc(b.id)}">➕ تمديد ساعة</button>`;
+    } else if (live && stM <= m && m < endM && endM - m <= SOON){
+      flag = `<div class="flag soon">⏳ باقي ${endM - m} دقيقة</div>`;
+      if (!RO) extra = `<button class="btn ghost" data-ext="${esc(b.id)}">➕ تمديد ساعة</button>`;
+    } else if (b.done){ flag = `<div class="flag done">✔️ طلع الزبون</div>`; }
+    return `<div class="bk">${flag}<div class="h"><b>${esc(b.name)}</b><span class="t">${hl(bStart(b,cafe))} – ${hl(bEnd(b,cafe))}</span></div>
+      <div class="m">${hrsL(hrs)} · <b style="color:var(--ink)">${money(b.price)}</b>
+      ${b.phone ? `<br>📞 <a href="tel:${esc(b.phone)}" dir="ltr">${esc(b.phone)}</a>` : ''}
+      ${b.people ? `<br>👥 ${esc(b.people)} أشخاص` : ''}
+      ${b.note ? `<br>📝 ${esc(b.note)}` : ''}
+      <br><span data-by="${esc(b.by || '')}" data-at="${esc(b.at || '')}">سجّله: …</span></div>
+      ${extra ? `<div class="actions">${extra}</div>` : ''}
+      ${RO ? '' : `<div class="actions"><button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button><button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button></div>`}</div>`;
+  }).join('');
+  openSheet(`<h2>خيمة ${n}</h2><div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
+    <div class="sub" style="margin:0">${RO ? 'الأوقات (اطلاع فقط):' : 'اضغط على ساعة فاضية للحجز:'}</div>
+    <div class="tl">${tl}</div>
+    <div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span></div>
+    ${cards || '<div class="sub" style="margin-top:12px">ما في حجوزات على هالخيمة هاليوم.</div>'}
+    <div class="err" id="ferr"></div>
+    <div class="actions">${RO ? '' : '<button class="btn green" id="nb">➕ حجز جديد</button>'}<button class="btn ghost" id="cx">إغلاق</button></div>`);
+  $('#cx').onclick = closeSheet;
+  const nb = $('#nb'); if (nb) nb.onclick = () => openBook(cafe, n, null, firstFree(cafe, n, curHour(cafe)));
+  $('#sheet').querySelectorAll('.tl button[data-h]').forEach(b => { if (!b.disabled) b.onclick = () => openBook(cafe, n, null, Number(b.dataset.h)); });
+  $('#sheet').querySelectorAll('[data-ed]').forEach(b => b.onclick = () => openBook(cafe, n, list.find(x => x.id === b.dataset.ed)));
+  $('#sheet').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد؟'; return; }
+    b.disabled = true;
+    try { await q(sb.from('bookings').delete().eq('id', b.dataset.del)); await loadBookings(); openTent(cafe, n); }
+    catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
+  });
+  $('#sheet').querySelectorAll('[data-done]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await q(sb.from('bookings').update({ done: true, done_by: me, done_at: new Date().toISOString() }).eq('id', b.dataset.done)); await loadBookings(); }
+    catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
+  });
+  $('#sheet').querySelectorAll('[data-ext]').forEach(b => b.onclick = async () => {
+    const bk = list.find(x => x.id === b.dataset.ext); if (!bk) return;
+    const end = bEnd(bk, cafe) + 1;
+    if (end > C.close){ $('#ferr').textContent = 'ما يصير تمديد بعد وقت السكير.'; return; }
+    b.disabled = true;
+    try {
+      const rate = Number(bk.rate) || C.price;
+      await q(sb.from('bookings').update({ end_h: end, done: false, price: Math.round((end - bStart(bk,cafe)) * rate * 1000) / 1000 }).eq('id', bk.id));
+      await loadBookings();
+    } catch(err){ $('#ferr').textContent = err && err.code === '23P01' ? 'ما يصير تمديد، في حجز بعده على نفس الخيمة.' : errText(err); b.disabled = false; }
+  });
+  $('#sheet').querySelectorAll('[data-by]').forEach(el => {
+    const nm = pname(el.dataset.by);
+    const at = Number(el.dataset.at);
+    el.textContent = 'سجّله: ' + nm + (at ? ' · ' + new Date(at).toLocaleString('ar-KW-u-nu-latn',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}) : '');
+  });
+}
+function firstFree(cafe, n, from){
+  const C = cfg(cafe);
+  for (let h = from; h < C.close; h++) if (!bookingAt(cafe, n, h)) return h;
+  for (let h = C.open; h < C.close; h++) if (!bookingAt(cafe, n, h)) return h;
+  return C.open;
+}
+
+function openBook(cafe, n, existing, startH){
+  if (!canBook(cafe)) return;
+  const C = cfg(cafe), b = existing || {};
+  const s0 = existing ? bStart(b, cafe) : startH;
+  let e0 = existing ? bEnd(b, cafe) : s0 + 1;
+  if (!existing){ // extend default to 2 hours if free
+    if (s0 + 2 <= C.close && !bookingAt(cafe, n, s0 + 1)) e0 = s0 + 2;
+  }
+  let so = '', eo = '';
+  for (let h = C.open; h < C.close; h++) so += `<option value="${h}" ${h===s0?'selected':''}>${hl(h)}</option>`;
+  for (let h = C.open + 1; h <= C.close; h++) eo += `<option value="${h}" ${h===e0?'selected':''}>${hl(h)}</option>`;
+  openSheet(`<h2>${existing ? 'تعديل حجز' : 'حجز'} خيمة ${n}</h2>
+    <div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
+    <form id="bf">
+      <div class="row"><div><label>من</label><select class="f" name="start">${so}</select></div><div><label>إلى</label><select class="f" name="end">${eo}</select></div></div>
+      <div class="price" id="pr"></div>
+      <label>اسم الزبون *</label><input class="f" name="name" required maxlength="80" value="${esc(b.name)}">
+      <label>رقم الجوال</label><input class="f" name="phone" type="tel" inputmode="tel" maxlength="20" dir="ltr" value="${esc(b.phone)}">
+      <label>عدد الأشخاص</label><input class="f" name="people" type="number" min="1" max="99" inputmode="numeric" value="${esc(b.people)}">
+      <label>ملاحظات</label><textarea class="f" name="note" maxlength="300">${esc(b.note)}</textarea>
+      <div class="err" id="ferr"></div>
+      <div class="actions"><button class="btn green" type="submit">✅ ${existing ? 'حفظ' : 'تأكيد الحجز'}</button><button class="btn ghost" type="button" id="cx">رجوع</button></div>
+    </form>`);
+  const form = $('#bf');
+  const upd = () => {
+    const s = Number(form.start.value), e = Number(form.end.value), hrs = e - s; $('#ferr').textContent = '';
+    $('#pr').innerHTML = hrs > 0 ? `<span>${hrsL(hrs)} × ${money(C.price)}</span><span>${money(hrs * C.price)}</span>` : '<span style="color:var(--busy)">وقت النهاية لازم بعد البداية</span>';
+  };
+  form.start.onchange = () => { if (Number(form.end.value) <= Number(form.start.value)) form.end.value = Math.min(C.close, Number(form.start.value) + 1); upd(); };
+  form.end.onchange = upd; upd();
+  $('#cx').onclick = () => openTent(cafe, n);
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(form), btn = form.querySelector('[type=submit]');
+    const name = String(f.get('name')).trim(); if (!name) return;
+    const start = Number(f.get('start')), end = Number(f.get('end'));
+    btn.disabled = true; $('#ferr').textContent = '';
+    const data = { cafe_id: cafe.id, date: selDate, tent: n, start_h: start, end_h: end, name,
+      phone: String(f.get('phone')).trim() || null, people: Number(f.get('people')) || null, note: String(f.get('note')).trim() || null,
+      rate: C.price, price: Math.round((end - start) * C.price * 1000) / 1000 };
+    try {
+      if (end <= start) throw new Error('range');
+      if (existing) await q(sb.from('bookings').update(data).eq('id', existing.id));
+      else await q(sb.from('bookings').insert(data));
+      await loadBookings();
+      selHour = start;
+      setTimeout(() => { const c = cafes.find(x => x.id === cafe.id); if (c) openTent(c, n); }, 150);
+    } catch(err){
+      $('#ferr').textContent = errText(err); btn.disabled = false;
+    }
+  };
+}
+
+/* ---------- settings ---------- */
+function hourOpts(from, to, sel){ let o = ''; for (let h = from; h <= to; h++) o += `<option value="${h}" ${h===sel?'selected':''}>${hl(h)}</option>`; return o; }
+function openSettings(){
+  const list = cafes.map(c => { const C = cfg(c); return `<div class="cafeRow"><div><b>${esc(c.name)}</b><small>${tentsOf(c)} خيمة · ${money(C.price)}/ساعة · ${hl(C.open)}–${hl(C.close)}</small><small class="mn">${esc(mgrNames(c))}</small></div>
+      <button class="mini" data-e="${esc(c.id)}">تعديل</button><button class="mini d" data-d="${esc(c.id)}">حذف</button></div>`; }).join('')
+      || '<div class="sub">ما في مقاهي للحين.</div>';
+  openSheet(`<div class="seg" style="margin-bottom:12px"><button class="on">🏪 المقاهي</button><button id="toUsers">👥 الموظفين</button></div>
+    <h2>⚙️ إدارة المقاهي</h2><div class="sub">المقاهي، عدد الخيام، سعر الساعة وأوقات الدوام</div>
+    ${list}<hr>
+    <form id="cf"><b id="cft">➕ إضافة مقهى</b>
+      <input type="hidden" name="id">
+      <label>اسم المقهى</label><input class="f" name="name" required maxlength="60">
+      <div class="row"><div><label>عدد الخيام</label><input class="f" name="tents" type="number" min="1" max="200" inputmode="numeric" required></div>
+      <div><label>سعر الساعة (د.ك)</label><input class="f" name="price" type="number" min="0" step="0.25" inputmode="decimal" value="2" required></div></div>
+      <div class="row"><div><label>يفتح</label><select class="f" name="open">${hourOpts(6, 23, 15)}</select></div>
+      <div><label>يسكر</label><select class="f" name="close">${hourOpts(7, 30, 24)}</select></div></div>
+      <div class="err" id="ferr"></div>
+      <div class="actions"><button class="btn" type="submit">حفظ</button><button class="btn ghost" type="button" id="cx">إغلاق</button></div>
+    </form>`);
+  $('#cx').onclick = closeSheet;
+  $('#toUsers').onclick = openUsers;
+  const form = $('#cf');
+  $('#sheet').querySelectorAll('[data-e]').forEach(b => b.onclick = () => {
+    const c = cafes.find(x => x.id === b.dataset.e), C = cfg(c);
+    form.id.value = c.id; form.name.value = c.name; form.tents.value = tentsOf(c);
+    form.price.value = C.price; form.open.value = C.open; form.close.value = C.close;
+    $('#cft').textContent = '✏️ تعديل: ' + c.name; form.name.focus();
+  });
+  $('#sheet').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => {
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد؟'; return; }
+    b.disabled = true;
+    try { await q(sb.from('cafes').delete().eq('id', b.dataset.d)); await loadCafes(); openSettings(); }
+    catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
+  });
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const id = form.id.value, name = form.name.value.trim(), tents = Math.max(1, Math.min(200, Number(form.tents.value)||0));
+    const price = Math.max(0, Number(form.price.value) || 0), open = Number(form.open.value), close = Number(form.close.value);
+    if (!name || !tents) return;
+    if (close <= open){ $('#ferr').textContent = 'وقت السكير لازم بعد وقت الفتح.'; return; }
+    const btn = form.querySelector('[type=submit]'); btn.disabled = true;
+    try {
+      if (id){ await q(sb.from('cafes').update({ name, tents, price, open, close }).eq('id', id)); }
+      else { await q(sb.from('cafes').insert({ name, tents, price, open, close, sort: Date.now() })); }
+      await loadCafes(); openSettings();
+    } catch(err){ $('#ferr').textContent = errText(err); btn.disabled = false; }
+  };
+}
+$('#gear').onclick = openSettings;
+
+/* ---------- كروكي ---------- */
+const clamp = v => Math.round(Math.max(8, Math.min(92, v)) * 10) / 10;
+let lastW = 360;
+function mapCols(total){ return total <= 4 ? 2 : total <= 9 ? 3 : Math.max(4, Math.min(8, Math.floor(lastW / 70))); }
+function defaultPos(n, total){
+  const cols = mapCols(total), rows = Math.ceil(total / cols);
+  const i = n - 1, c = i % cols, r = Math.floor(i / cols);
+  const r1 = v => Math.round(v * 10) / 10;
+  return { x: r1(100 - (4 + (c + 0.5) * 92 / cols)), y: r1(3 + (r + 0.5) * 94 / rows) };
+}
+function layoutOf(cafe){
+  if (editing && draft) return draft;
+  const L = (cafe.layout && typeof cafe.layout === 'object') ? cafe.layout : {};
+  let tents = (L.tents && typeof L.tents === 'object') ? L.tents : {};
+  // لو بعض الخيام ما لها مكان محفوظ (انضافت من الإعدادات)، رتّب الكل ترتيب تلقائي عشان ما تتداخل
+  const total = tentsOf(cafe);
+  for (let n = 1; n <= total; n++) if (!tents[n]){ tents = {}; break; }
+  return { tents, marks: Array.isArray(L.marks) ? L.marks : [] };
+}
+const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 Z"/><path class="door" d="M23 14 L30 34 H16 Z"/></svg>';
+
+function renderMap(cafe, total, H){
+  if (dragging) return;
+  const L = layoutOf(cafe), grid = $('#grid');
+  grid.className = '';
+  const W = Math.max(280, Math.min(grid.clientWidth || 360, 820)); lastW = W; const cols = mapCols(total), rows = Math.ceil(total / cols);
+  const S = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)));           // حجم الخيمة
+  const C2 = cfg(cafe), stripRows = Math.ceil((C2.close - C2.open) / 5);
+  const mapH = Math.round(Math.max(W * 1.1, rows * (S * 1.2 + stripRows * 12 + 14) + 30));           // طول الكروكي
+  const crowded = total > 20;
+  let h = `<div class="map ${editing ? 'edit' : ''} ${crowded ? 'crowd' : ''}" id="map" style="--s:${S}px;aspect-ratio:auto;height:${mapH}px;max-height:none">`;
+  L.marks.forEach((m, i) => {
+    h += `<div class="mark" data-drag data-m="${i}" style="left:${Number(m.x)||50}%;top:${Number(m.y)||50}%">${esc(m.t)}${editing ? `<i data-x="${i}">×</i>` : ''}</div>`;
+  });
+  for (let n = 1; n <= total; n++){
+    const p = L.tents[n] || defaultPos(n, total), st = tentState(cafe, n, H), b = st.b;
+    h += `<button class="pt ${st.s}" data-drag data-n="${n}" style="left:${p.x}%;top:${p.y}%">${tentSvg}<b>${n}</b>${b ? `<small>${esc(b.name)}</small>` : (crowded ? '' : '<small>فاضية</small>')}${strip(cafe, n, H)}</button>`;
+  }
+  const live = isLive(cafe);
+  h += `</div><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span>${live ? '<span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span>' : ''}</div>`;
+  grid.innerHTML = h;
+  bindTentClicks(cafe, '.pt');
+  if (editing) bindDrag($('#map'));
+}
+
+function bindDrag(map){
+  map.querySelectorAll('[data-x]').forEach(x => x.onpointerdown = e => {
+    e.stopPropagation(); draft.marks.splice(Number(x.dataset.x), 1); render();
+  });
+  map.querySelectorAll('[data-drag]').forEach(el => {
+    el.onpointerdown = e => {
+      if (e.target.dataset.x !== undefined) return;
+      e.preventDefault(); dragging = true;
+      try { el.setPointerCapture(e.pointerId); } catch(_){}
+      const r = map.getBoundingClientRect();
+      el.onpointermove = ev => {
+        const x = clamp((ev.clientX - r.left) / r.width * 100), y = clamp((ev.clientY - r.top) / r.height * 100);
+        el.style.left = x + '%'; el.style.top = y + '%';
+        if (el.dataset.n) draft.tents[el.dataset.n] = { x, y };
+        else { const m = draft.marks[Number(el.dataset.m)]; if (m){ m.x = x; m.y = y; } }
+      };
+      el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; dragging = false; };
+    };
+  });
+}
+function startEdit(){
+  const cafe = cafes.find(c => c.id === selCafe); if (!cafe) return;
+  const L = layoutOf(cafe), total = tentsOf(cafe), tents = {};
+  for (let n = 1; n <= total; n++){ const p = L.tents[n] || defaultPos(n, total); tents[n] = { x: p.x, y: p.y }; }
+  draft = { count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })) };
+  editing = true; render();
+}
+function stopEdit(){ editing = false; draft = null; dragging = false; render(); }
+function renderEditbar(){
+  const eb = $('#editbar');
+  if (!editing){ eb.innerHTML = ''; return; }
+  if (eb.firstChild) return;
+  eb.innerHTML = `<div class="editbar"><p>اسحب الخيام والعلامات لمكانها الصحيح، وبعدين اضغط حفظ.</p>
+    <div class="row"><input class="f" id="markT" placeholder="علامة: المدخل، الكاشير، الدخان…" maxlength="30"><button class="mini" id="addMark" style="flex:none">➕ علامة</button></div>
+    <div class="row" style="margin-top:8px;align-items:center"><b id="tcount" style="flex:none"></b><button class="mini" id="addTent">➕ أضف خيمة</button><button class="mini d" id="delTent">➖ شيل آخر خيمة</button></div>
+    <div class="err" id="eerr"></div>
+    <div class="actions"><button class="btn green" id="saveMap">💾 حفظ</button><button class="btn ghost" id="autoMap">🔄 تلقائي</button><button class="btn ghost" id="cancelMap">إلغاء</button></div></div>`;
+  $('#addMark').onclick = () => { const t = $('#markT').value.trim(); if (!t) return; draft.marks.push({ t, x: 50, y: 50 }); $('#markT').value = ''; render(); };
+  const showCount = () => { const t = $('#tcount'); if (t) t.textContent = '⛺ ' + draft.count + ' خيمة'; };
+  showCount();
+  $('#addTent').onclick = () => {
+    if (draft.count >= 200) return;
+    draft.count++; draft.tents[draft.count] = { x: 50, y: 6 }; showCount(); render();
+    $('#eerr').textContent = 'الخيمة ' + draft.count + ' طلعت فوق بالنص، اسحبها لمكانها.';
+  };
+  $('#delTent').onclick = () => {
+    if (draft.count <= 1) return;
+    const n = draft.count;
+    if (bookings.some(b => b.cafeId === selCafe && Number(b.tent) === n && b.name)){ $('#eerr').textContent = 'الخيمة ' + n + ' عليها حجز هاليوم، ما يصير تشيلها.'; return; }
+    delete draft.tents[n]; draft.count--; showCount(); $('#eerr').textContent = ''; render();
+  };
+  $('#autoMap').onclick = () => { const total = draft.count; for (let n = 1; n <= total; n++) draft.tents[n] = defaultPos(n, total); render(); };
+  $('#cancelMap').onclick = stopEdit;
+  $('#saveMap').onclick = async () => {
+    const btn = $('#saveMap'); btn.disabled = true; $('#eerr').textContent = '';
+    try {
+
+      const tents = {}; for (let n = 1; n <= draft.count; n++) if (draft.tents[n]) tents[n] = draft.tents[n];
+      await q(sb.from('cafes').update({ tents: draft.count, layout: { tents, marks: draft.marks } }).eq('id', selCafe));
+      await loadCafes();
+      stopEdit();
+    } catch(err){ $('#eerr').textContent = errText(err); btn.disabled = false; }
+  };
+}
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+  view = b.dataset.v; if (editing) stopEdit();
+  try { localStorage.setItem('tentView', view); } catch(_){}
+  render();
+});
+$('#editMap').onclick = startEdit;
+
+/* ---------- date controls ---------- */
+function setDate(d){ if (!d || d === selDate) return; selDate = d; selHour = null; subscribeBookings(); render(); }
+$('#prev').onclick = () => setDate(shift(selDate,-1));
+$('#next').onclick = () => setDate(shift(selDate,1));
+$('#today').onclick = () => setDate(dstr(new Date()));
+$('#date').onchange = e => setDate(e.target.value);
+
+/* ---------- الموظفين ---------- */
+function mgrNames(c){
+  const ms = Object.values(people).filter(p => p.role === 'staff' && p.can_book && p.cafe_id === c.id);
+  return ms.length ? '👤 مسؤول الحجز: ' + ms.map(p => p.display_name).join('، ') : '⚠️ بدون مسؤول حجز';
+}
+async function callAdmin(body){
+  const { data: { session } } = await sb.auth.getSession();
+  const r = await fetch(SB_URL + '/functions/v1/admin-users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + (session ? session.access_token : SB_KEY) },
+    body: JSON.stringify(body)
+  });
+  let j = {}; try { j = await r.json(); } catch(_){}
+  if (!r.ok || j.error) throw new Error(j.error || 'failed');
+  return j;
+}
+const ADMIN_ERR = { bad_username: 'اسم المستخدم لازم يكون بالإنجليزي (حروف صغيرة وأرقام) من 3 لين 30 حرف، بدون مسافات.',
+  bad_password: 'الرقم السري لازم يكون 6 أحرف أو أكثر.', username_taken: 'اسم المستخدم مستخدم، اختار غيره.',
+  owner_exists: 'حساب المالك موجود من قبل.', bad_code: 'رمز التفعيل غلط.', forbidden: 'هالشي للمالك بس.', cannot_delete_owner: 'ما يصير تحذف المالك.' };
+const adminErr = e => ADMIN_ERR[e && e.message] || 'صار خطأ، تأكد من النت وجرب مرة ثانية.';
+
+function cafeOpts(sel){ return '<option value="">— بدون مقهى —</option>' + cafes.map(c => `<option value="${esc(c.id)}" ${c.id===sel?'selected':''}>${esc(c.name)}</option>`).join(''); }
+function openUsers(){
+  const list = Object.values(people).sort((a,b) => (a.role === 'owner' ? -1 : 0) - (b.role === 'owner' ? -1 : 0) || a.display_name.localeCompare(b.display_name, 'ar'))
+    .map(p => {
+      const c = cafes.find(x => x.id === p.cafe_id);
+      const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط');
+      return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small></div>
+        <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
+    }).join('');
+  openSheet(`<div class="seg" style="margin-bottom:12px"><button id="toCafes">🏪 المقاهي</button><button class="on">👥 الموظفين</button></div>
+    <h2>👥 الموظفين</h2><div class="sub">كل موظف يدخل باسم مستخدم ورقم سري. حدد مقهاه وهل يقدر يحجز أو يشوف بس.</div>
+    ${list}<hr>
+    <form id="uf"><b id="uft">➕ إضافة موظف</b>
+      <input type="hidden" name="uid">
+      <label>اسم الموظف</label><input class="f" name="dname" required maxlength="60" placeholder="مثلاً: خالد">
+      <label>اسم المستخدم (بالإنجليزي)</label><input class="f" name="uname" dir="ltr" autocapitalize="none" autocomplete="off" spellcheck="false" maxlength="30" placeholder="khaled">
+      <label id="pwl">الرقم السري</label><input class="f" name="pw" dir="ltr" autocomplete="new-password" maxlength="72" placeholder="6 أحرف أو أكثر">
+      <div id="staffOnly">
+        <label>المقهى</label><select class="f" name="cafe">${cafeOpts('')}</select>
+        <label>الصلاحية</label><select class="f" name="perm"><option value="view">👁️ اطلاع فقط</option><option value="book">✅ يضيف حجوزات بمقهاه</option></select>
+      </div>
+      <div class="err" id="ferr"></div>
+      <div class="actions"><button class="btn" type="submit">حفظ</button><button class="btn ghost" type="button" id="cx">إغلاق</button></div>
+    </form>`);
+  $('#cx').onclick = closeSheet;
+  $('#toCafes').onclick = openSettings;
+  const form = $('#uf');
+  $('#sheet').querySelectorAll('[data-ue]').forEach(b => b.onclick = () => {
+    const p = people[b.dataset.ue]; if (!p) return;
+    form.uid.value = p.id; form.dname.value = p.display_name; form.uname.value = p.username; form.uname.disabled = true;
+    form.pw.value = ''; form.pw.placeholder = 'اتركه فاضي لو ما تبي تغيّره'; $('#pwl').textContent = 'رقم سري جديد';
+    $('#staffOnly').hidden = p.role === 'owner';
+    form.cafe.value = p.cafe_id || ''; form.perm.value = p.can_book ? 'book' : 'view';
+    $('#uft').textContent = '✏️ تعديل: ' + p.display_name; form.dname.focus();
+  });
+  $('#sheet').querySelectorAll('[data-ud]').forEach(b => b.onclick = async () => {
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد؟'; return; }
+    b.disabled = true;
+    try { await callAdmin({ action: 'delete', id: b.dataset.ud }); await loadPeople(); openUsers(); }
+    catch(err){ $('#ferr').textContent = adminErr(err); b.disabled = false; }
+  });
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const btn = form.querySelector('[type=submit]'); btn.disabled = true; $('#ferr').textContent = '';
+    const id = form.uid.value, cafe_id = form.cafe.value || null, can_book = form.perm.value === 'book';
+    try {
+      if (can_book && !cafe_id) throw new Error('need_cafe');
+      if (id) await callAdmin({ action: 'update', id, display_name: form.dname.value, cafe_id, can_book, password: form.pw.value });
+      else await callAdmin({ action: 'create', username: form.uname.value, display_name: form.dname.value, password: form.pw.value, cafe_id, can_book });
+      await loadPeople(); openUsers();
+    } catch(err){
+      $('#ferr').textContent = err.message === 'need_cafe' ? 'اختار المقهى اللي يحجز فيه.' : adminErr(err);
+      btn.disabled = false;
+    }
+  };
+}
+
+/* ---------- البيانات ---------- */
+async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order('sort'))).map(normC); cafesLoaded = true; render(); }
+async function loadPeople(){
+  const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book'));
+  people = {}; rows.forEach(r => people[r.id] = r);
+  meP = people[me] || null; owner = !!meP && meP.role === 'owner'; canAdmin = owner;
+  render();
+}
+let bLoadSeq = 0;
+async function loadBookings(){
+  const seq = ++bLoadSeq, d = selDate;
+  const rows = await q(sb.from('bookings').select('*').eq('date', d));
+  if (seq !== bLoadSeq || d !== selDate) return;
+  bookings = rows.map(normB); setStatus(''); render(); refreshOpenTent();
+}
+function refreshOpenTent(){
+  if (!openTentRef || !$('#back').classList.contains('open') || $('#bf') || $('#cf') || $('#uf')) return;
+  const c = cafes.find(x => x.id === openTentRef.cafe); if (c && $('#sheet h2') && $('#sheet h2').textContent === 'خيمة ' + openTentRef.n) openTent(c, openTentRef.n);
+}
+function subscribeBookings(){ bookings = []; setStatus('جاري التحميل…'); render(); loadBookings().catch(() => setStatus('ما قدرنا نوصل للبيانات، تأكد من النت.')); }
+
+let channel = null, rt = null;
+function startRealtime(){
+  if (channel) sb.removeChannel(channel);
+  const soon = fn => { clearTimeout(rt); rt = setTimeout(fn, 250); };
+  channel = sb.channel('live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => soon(() => loadBookings().catch(()=>{})))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cafes' }, () => loadCafes().catch(()=>{}))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => loadPeople().catch(()=>{}))
+    .subscribe();
+}
+// احتياط لو انقطع الاتصال المباشر: تحديث كل دقيقة، ولما يرجع الموظف للصفحة
+setInterval(() => { if (me && !document.hidden) loadBookings().catch(()=>{}); }, 60000);
+document.addEventListener('visibilitychange', () => { if (me && !document.hidden){ loadBookings().catch(()=>{}); loadCafes().catch(()=>{}); } });
+
+/* ---------- الدخول ---------- */
+function showAuth(mode, msg){
+  $('#app').hidden = true; $('#auth').hidden = false;
+  const setup = mode === 'setup';
+  $('#auth').innerHTML = `<div class="authbox">
+    <div style="font-size:46px">⛺</div><h1>حجز الخيام</h1>
+    <div class="sub">${setup ? 'أول مرة: سوّ حساب المالك (انت). هالحساب يقدر يضيف الموظفين ويعدّل المقاهي.' : 'سجّل دخول باسم المستخدم والرقم السري'}</div>
+    <form id="af">
+      ${setup ? '<label>رمز التفعيل</label><input class="f" name="code" dir="ltr" inputmode="numeric" required maxlength="6" placeholder="6 أرقام"><label>اسمك</label><input class="f" name="dname" required maxlength="60" placeholder="أبو راكان">' : ''}
+      <label>اسم المستخدم</label><input class="f" name="uname" dir="ltr" autocapitalize="none" autocomplete="username" spellcheck="false" required maxlength="30">
+      <label>الرقم السري</label><input class="f" name="pw" type="password" dir="ltr" autocomplete="${setup ? 'new-password' : 'current-password'}" required maxlength="72">
+      <div class="err" id="aerr">${esc(msg || '')}</div>
+      <button class="btn green" type="submit" style="width:100%;margin-top:10px">${setup ? 'إنشاء الحساب' : 'دخول'}</button>
+    </form></div>`;
+  $('#af').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, btn = f.querySelector('button'); btn.disabled = true; $('#aerr').textContent = '';
+    const uname = f.uname.value.trim().toLowerCase(), pw = f.pw.value;
+    try {
+      if (setup) await callAdmin({ action: 'bootstrap', code: f.code.value.trim(), username: uname, display_name: f.dname.value, password: pw });
+      const { error } = await sb.auth.signInWithPassword({ email: uname + '@' + EMAIL_DOMAIN, password: pw });
+      if (error) throw new Error('login');
+    } catch(err){
+      $('#aerr').textContent = err.message === 'login' ? 'اسم المستخدم أو الرقم السري غلط.' : adminErr(err);
+      btn.disabled = false;
+    }
+  };
+}
+async function enterApp(session){
+  me = session.user.id;
+  $('#auth').hidden = true; $('#app').hidden = false;
+  try {
+    await loadPeople();
+    if (!meP){ await sb.auth.signOut(); return showAuth('login', 'هالحساب ما له صلاحية على البرنامج.'); }
+    await loadCafes();
+    subscribeBookings();
+    startRealtime();
+  } catch(_){ setStatus('ما قدرنا نوصل للبيانات، تأكد من النت.'); }
+}
+async function boot(){
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) return enterApp(session);
+  let hasOwner = true;
+  try { hasOwner = await q(sb.rpc('has_owner')); } catch(_){}
+  showAuth(hasOwner ? 'login' : 'setup');
+}
+sb.auth.onAuthStateChange((ev, session) => {
+  if (ev === 'SIGNED_IN' && session && session.user.id !== me) enterApp(session);
+  if (ev === 'SIGNED_OUT'){ me = null; meP = null; owner = false; canAdmin = false; if (channel) sb.removeChannel(channel); channel = null; boot(); }
+});
+
+/* ---------- حسابي ---------- */
+function openAccount(){
+  openSheet(`<h2>👤 ${esc(meP ? meP.display_name : '')}</h2><div class="sub" dir="ltr" style="text-align:right">${esc(meP ? meP.username : '')}</div>
+    <form id="pf"><label>غيّر رقمك السري</label><input class="f" name="pw" type="password" dir="ltr" autocomplete="new-password" minlength="6" maxlength="72" placeholder="الرقم السري الجديد">
+    <div class="err" id="ferr"></div>
+    <div class="actions"><button class="btn" type="submit">حفظ الرقم السري</button></div></form><hr>
+    <div class="actions"><button class="btn danger" id="lo">🚪 تسجيل خروج</button><button class="btn ghost" id="cx">إغلاق</button></div>`);
+  $('#cx').onclick = closeSheet;
+  $('#lo').onclick = async () => { closeSheet(); await sb.auth.signOut(); };
+  $('#pf').onsubmit = async e => {
+    e.preventDefault(); const pw = e.target.pw.value;
+    if (pw.length < 6){ $('#ferr').textContent = 'الرقم السري لازم 6 أحرف أو أكثر.'; return; }
+    const { error } = await sb.auth.updateUser({ password: pw });
+    $('#ferr').style.color = error ? '' : 'var(--bk)';
+    $('#ferr').textContent = error ? 'ما انحفظ، جرب مرة ثانية.' : '✅ تغيّر الرقم السري';
+  };
+}
+$('#acct').onclick = openAccount;
+
+let rsz = null; window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (!dragging) render(); }, 200); });
+setInterval(() => { if (!dragging && !editing && cafesLoaded) render(); }, 30000);
+boot();
+</script>
+</body>
+</html>
