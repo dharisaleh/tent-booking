@@ -180,6 +180,37 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .authbox h1{margin:4px 0 6px;font-size:24px}
 .authbox form{text-align:right}
 [hidden]{display:none!important}
+/* لوحة التحكم */
+.dhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.dhead h1{flex:1;margin:0;font-size:22px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 12px;cursor:pointer;font-weight:700;color:var(--ink)}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:6px 0 12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.kpi small{display:block;color:var(--mut);font-weight:700;font-size:12px}
+.kpi b{font-size:22px;display:block;margin-top:2px}
+.kpi i{font-style:normal;font-size:12px;color:var(--mut)}
+.kpi.g b{color:var(--bk)}.kpi.r b{color:var(--over)}.kpi.y b{color:#a87a00}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}
+.card h3{margin:0 0 10px;font-size:16px}
+.hbar{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+.hbar .l{width:72px;flex:none;color:var(--mut);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hbar .t{flex:1;background:var(--freebg2);border-radius:6px;height:16px;overflow:hidden}
+.hbar .t span{display:block;height:100%;background:var(--bk);border-radius:6px}
+.hbar .v{width:64px;flex:none;text-align:left;font-weight:800;font-size:12px}
+.vbars{display:flex;align-items:flex-end;gap:3px;height:140px;padding-top:14px;direction:rtl;overflow-x:auto}
+.vbars div{flex:1;min-width:14px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+.vbars span{width:100%;background:var(--acc);border-radius:4px 4px 0 0;min-height:2px}
+.vbars small{font-size:9px;color:var(--mut);margin-top:3px;white-space:nowrap}
+.vbars em{font-style:normal;font-size:9px;font-weight:800;color:var(--acc)}
+table.dt{width:100%;border-collapse:collapse;font-size:13px}
+table.dt th{color:var(--mut);font-weight:700;text-align:right;padding:6px 4px;border-bottom:1px solid var(--line)}
+table.dt td{padding:7px 4px;border-bottom:1px solid var(--line)}
+table.dt td.n{font-weight:800;white-space:nowrap}
+.flagrow{border-inline-start:4px solid var(--over);background:var(--overbg);border-radius:10px;padding:7px 10px;margin-top:6px;font-size:13px}
+.flagrow small{color:var(--mut)}
+
 header h1{display:flex;align-items:center;gap:8px}
 .hlogo{width:44px;height:44px;object-fit:contain}
 .alogo{width:120px;height:120px;object-fit:contain;display:block;margin:0 auto}
@@ -207,6 +238,7 @@ header h1{display:flex;align-items:center;gap:8px}
 <div class="wrap" id="app" hidden>
   <header>
     <h1><img src="logo.png" alt="المقاهي الشعبية" class="hlogo"> حجز <span>الخيام</span></h1>
+    <button class="icon" id="dashBtn" title="لوحة التحكم" hidden>📊</button>
     <button class="icon" id="acct" title="حسابي">👤</button>
     <button class="icon" id="gear" title="الإعدادات" hidden>⚙️</button>
   </header>
@@ -232,6 +264,7 @@ header h1{display:flex;align-items:center;gap:8px}
   <div id="grid"></div>
 </div>
 
+<div class="wrap" id="dash" hidden></div>
 <div class="back" id="back"><div class="sheet" id="sheet"></div></div>
 
 <script>
@@ -318,7 +351,7 @@ function strip(c, n, H){
 
 function render(){
   dateLabel();
-  $('#gear').hidden = !canAdmin;
+  $('#gear').hidden = !canAdmin; $('#dashBtn').hidden = !owner;
   const tabs = $('#tabs'), grid = $('#grid'), stats = $('#stats'), hours = $('#hours');
   if (!cafesLoaded || !cafes.length){ $('#bar').hidden = true; $('#editbar').innerHTML = ''; $('#access').textContent = ''; hours.innerHTML = ''; stats.innerHTML = ''; tabs.innerHTML = ''; }
   if (!cafesLoaded){ grid.innerHTML = ''; return; }
@@ -912,6 +945,129 @@ async function openLog(){
   } catch(_){ const box = $('#logList'); if (box) box.textContent = 'ما قدرنا نحمّل السجل.'; }
 }
 
+
+/* ---------- لوحة التحكم (للمالك) ---------- */
+let dashRange = 'today', dashCafe = 'all';
+const DR = { today: 'اليوم', yday: 'أمس', d7: 'آخر 7 أيام', month: 'هالشهر', last: 'الشهر اللي طاف' };
+function rangeDates(k){
+  const t = dstr(new Date()), d = new Date();
+  if (k === 'yday') { const y = shift(t, -1); return [y, y]; }
+  if (k === 'd7') return [shift(t, -6), t];
+  if (k === 'month') return [t.slice(0, 8) + '01', t];
+  if (k === 'last') return [dstr(new Date(d.getFullYear(), d.getMonth() - 1, 1)), dstr(new Date(d.getFullYear(), d.getMonth(), 0))];
+  return [t, t];
+}
+function daysBetween(a, b){ const out = []; for (let x = a; x <= b; x = shift(x, 1)) out.push(x); return out; }
+async function fetchAll(make){
+  const out = []; for (let i = 0; i < 50000; i += 1000){ const rows = await q(make().range(i, i + 999)); out.push(...rows); if (rows.length < 1000) break; } return out;
+}
+function openDash(){ $('#app').hidden = true; $('#dash').hidden = false; window.scrollTo(0, 0); drawDash(null); loadDash(); }
+function closeDash(){ $('#dash').hidden = true; $('#app').hidden = false; render(); }
+$('#dashBtn').onclick = openDash;
+
+let dashSeq = 0;
+async function loadDash(){
+  const seq = ++dashSeq, [from, to] = rangeDates(dashRange);
+  try {
+    const rows = await fetchAll(() => sb.from('bookings').select('*').gte('date', from).lte('date', to).order('date'));
+    let logs = [];
+    try { logs = await fetchAll(() => sb.from('booking_log').select('action, actor, cafe_id, date, tent, before, after, at').gte('date', from).lte('date', to).in('action', ['delete', 'unpaid', 'update', 'paid']).order('id')); } catch(_){}
+    if (seq !== dashSeq) return;
+    drawDash({ from, to, B: rows.map(normB), logs });
+  } catch(_){ if (seq === dashSeq) drawDash({ error: true }); }
+}
+
+function drawDash(data){
+  const el = $('#dash');
+  const chips = Object.entries(DR).map(([k, v]) => `<button class="chip ${k === dashRange ? 'on' : ''}" data-r="${k}">${v}</button>`).join('');
+  const cchips = `<button class="chip ${dashCafe === 'all' ? 'on' : ''}" data-c="all">كل المقاهي</button>` + cafes.map(c => `<button class="chip ${dashCafe === c.id ? 'on' : ''}" data-c="${esc(c.id)}">${esc(c.name)}</button>`).join('');
+  let body = '';
+  if (!data) body = '<div class="status">جاري التحميل…</div>';
+  else if (data.error) body = '<div class="status">ما قدرنا نحمّل الأرقام، تأكد من النت.</div>';
+  else body = dashBody(data);
+  el.innerHTML = `<div class="dhead"><h1>📊 لوحة التحكم</h1><button class="btn ghost" id="dashBack">رجوع ←</button></div>
+    <div class="chips">${chips}</div><div class="chips">${cchips}</div>${body}`;
+  $('#dashBack').onclick = closeDash;
+  el.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { dashRange = b.dataset.r; drawDash(null); loadDash(); });
+  el.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { dashCafe = b.dataset.c; if (data && !data.error) drawDash(data); });
+}
+
+function dashBody({ from, to, B, logs }){
+  const sel = dashCafe === 'all' ? cafes : cafes.filter(c => c.id === dashCafe);
+  const ids = new Set(sel.map(c => c.id)), cafeOf = id => cafes.find(c => c.id === id);
+  const list = B.filter(b => ids.has(b.cafeId) && b.name);
+  const days = daysBetween(from, to), nd = days.length;
+  const tot = { rev: 0, cash: 0, knet: 0, due: 0, hrs: 0 };
+  list.forEach(b => { const c = cafeOf(b.cafeId); tot.rev += b.price; tot.hrs += bEnd(b,c) - bStart(b,c); tot.due += due(b);
+    if (b.paid) tot[b.payMethod === 'knet' ? 'knet' : 'cash'] += b.paidAmount; });
+  const cap = sel.reduce((s, c) => { const C = cfg(c); return s + tentsOf(c) * (C.close - C.open) * nd; }, 0);
+  const occ = cap ? Math.round(tot.hrs / cap * 100) : 0;
+  const pct = (v, m) => m ? Math.max(2, Math.round(v / m * 100)) : 0;
+
+  const kpis = `<div class="kpis">
+    <div class="kpi"><small>💰 مجموع الحجوزات</small><b>${money(tot.rev)}</b><i>${list.length} حجز · ${tot.hrs} ساعة</i></div>
+    <div class="kpi g"><small>✅ انقبض</small><b>${money(tot.cash + tot.knet)}</b><i>💵 ${money(tot.cash)} · 💳 ${money(tot.knet)}</i></div>
+    <div class="kpi ${tot.due > 0 ? 'r' : ''}"><small>⏳ ما انحسب</small><b>${money(tot.due)}</b><i>${list.filter(b => due(b) > 0).length} حجز</i></div>
+    <div class="kpi y"><small>📈 نسبة الإشغال</small><b>${occ}%</b><i>متوسط الحجز ${money(list.length ? tot.rev / list.length : 0)}</i></div>
+  </div>`;
+
+  // الدخل باليوم
+  let daily = '';
+  if (nd > 1){
+    const per = {}; days.forEach(d => per[d] = 0); list.forEach(b => per[b.date] = (per[b.date] || 0) + b.price);
+    const mx = Math.max(...Object.values(per), 0);
+    daily = `<div class="card"><h3>📅 الدخل باليوم</h3><div class="vbars">${days.map(d => `<div><em>${per[d] ? Math.round(per[d]) : ''}</em><span style="height:${pct(per[d], mx)}%"></span><small>${d.slice(8)}/${d.slice(5, 7)}</small></div>`).join('')}</div></div>`;
+  }
+
+  // أكثر الساعات زحمة
+  const hc = {}; let hmin = 24, hmax = 0;
+  sel.forEach(c => { const C = cfg(c); hmin = Math.min(hmin, C.open); hmax = Math.max(hmax, C.close); });
+  for (let h = hmin; h < hmax; h++) hc[h] = 0;
+  list.forEach(b => { const c = cafeOf(b.cafeId); for (let h = bStart(b,c); h < bEnd(b,c); h++) hc[h] = (hc[h] || 0) + 1; });
+  const hm = Math.max(...Object.values(hc), 0);
+  const hours = `<div class="card"><h3>⏰ أكثر الساعات زحمة</h3>${Object.keys(hc).map(Number).sort((a,b) => a - b).map(h => `<div class="hbar"><span class="l">${hl(h)}–${hl(h + 1)}</span><span class="t"><span style="width:${pct(hc[h], hm)}%"></span></span><span class="v">${hc[h]} خيمة</span></div>`).join('')}</div>`;
+
+  // مقارنة المقاهي
+  let cafesT = '';
+  if (dashCafe === 'all' && cafes.length > 1){
+    cafesT = `<div class="card"><h3>🏪 المقاهي</h3><table class="dt"><tr><th>المقهى</th><th>الحجوزات</th><th>انقبض</th><th>باقي</th><th>إشغال</th></tr>${cafes.map(c => {
+      const L = list.filter(b => b.cafeId === c.id), C = cfg(c);
+      const r = L.reduce((s, b) => s + b.price, 0), p = L.reduce((s, b) => s + (b.paid ? b.paidAmount : 0), 0), d = L.reduce((s, b) => s + due(b), 0);
+      const h = L.reduce((s, b) => s + bEnd(b,c) - bStart(b,c), 0), cp = tentsOf(c) * (C.close - C.open) * nd;
+      return `<tr><td>${esc(c.name)}</td><td class="n">${money(r)}<br><small style="color:var(--mut)">${L.length} حجز</small></td><td class="n" style="color:var(--bk)">${money(p)}</td><td class="n" style="color:${d > 0 ? 'var(--over)' : 'inherit'}">${money(d)}</td><td class="n">${cp ? Math.round(h / cp * 100) : 0}%</td></tr>`;
+    }).join('')}</table></div>`;
+  }
+
+  // الموظفين: كم حجز سجّل، وكم قبض (من السجل)
+  const emp = {};
+  const E = id => (emp[id || '?'] = emp[id || '?'] || { n: 0, rev: 0, cash: 0, knet: 0 });
+  list.forEach(b => { const e = E(b.by); e.n++; e.rev += b.price; });
+  const payLogs = logs.filter(r => r.action === 'paid' && ids.has(r.cafe_id));
+  if (payLogs.length) payLogs.forEach(r => { const a = r.after || {}, bf = r.before || {};
+      const dlt = (a.paid ? +a.paid_amount || 0 : 0) - (bf.paid ? +bf.paid_amount || 0 : 0); E(r.actor)[a.pay_method === 'knet' ? 'knet' : 'cash'] += dlt; });
+  else list.filter(b => b.paid).forEach(b => { E(b.paidBy)[b.payMethod === 'knet' ? 'knet' : 'cash'] += b.paidAmount; });
+  const empRows = Object.entries(emp).sort((a, b) => (b[1].cash + b[1].knet) - (a[1].cash + a[1].knet) || b[1].n - a[1].n);
+  const empT = `<div class="card"><h3>👤 الموظفين</h3>${empRows.length ? `<table class="dt"><tr><th>الموظف</th><th>سجّل</th><th>💵 كاش</th><th>💳 كي نت</th></tr>${empRows.map(([id, e]) => `<tr><td>${esc(pname(id))}</td><td class="n">${e.n} حجز</td><td class="n">${money(e.cash)}</td><td class="n">${money(e.knet)}</td></tr>`).join('')}</table>` : '<div class="sub">ما في حجوزات بهالفترة.</div>'}</div>`;
+
+  // أكثر الخيام حجزاً
+  const tc = {}; list.forEach(b => { const k = b.cafeId + ':' + b.tent; tc[k] = (tc[k] || 0) + b.price; });
+  const top = Object.entries(tc).sort((a, b) => b[1] - a[1]).slice(0, 5), tm = top.length ? top[0][1] : 0;
+  const tents = top.length ? `<div class="card"><h3>⛺ أكثر الخيام دخل</h3>${top.map(([k, v]) => { const [cid, t] = k.split(':'), c = cafeOf(cid);
+      return `<div class="hbar"><span class="l">${sel.length > 1 ? esc((c ? c.name : '').replace('مقهى ', '')) + ' ' : 'خيمة '}${t}</span><span class="t"><span style="width:${pct(v, tm)}%;background:var(--acc)"></span></span><span class="v">${money(v)}</span></div>`; }).join('')}</div>` : '';
+
+  // تنبيهات الرقابة
+  const flags = logs.filter(r => ids.has(r.cafe_id) && (r.action === 'delete' || r.action === 'unpaid' ||
+      (r.action === 'update' && r.before && r.after && Number(r.after.price) < Number(r.before.price)))).reverse();
+  const flagT = `<div class="card"><h3>🚨 تنبيهات الرقابة</h3>${flags.length ? flags.slice(0, 30).map(r => {
+      const x = r.before || r.after || {}, c = cafeOf(r.cafe_id), L = logText(r);
+      const tm2 = new Date(r.at).toLocaleString('ar-KW-u-nu-latn', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+      return `<div class="flagrow"><b>${esc(pname(r.actor))}</b> · ${L.t}<br><small>${esc(c ? c.name : '')} · خيمة ${r.tent} · ${esc(x.name || '')} · ${tm2}</small></div>`; }).join('')
+      + (flags.length > 30 ? `<div class="sub">و ${flags.length - 30} غيرها بالسجل.</div>` : '')
+    : '<div class="sub">✅ ما في حذف ولا إلغاء دفع ولا تخفيض أسعار بهالفترة.</div>'}</div>`;
+
+  return kpis + flagT + daily + cafesT + empT + hours + tents;
+}
+
 /* ---------- البيانات ---------- */
 async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order('sort'))).map(normC); cafesLoaded = true; render(); }
 async function loadPeople(){
@@ -996,7 +1152,7 @@ async function boot(){
 }
 sb.auth.onAuthStateChange((ev, session) => {
   if (ev === 'SIGNED_IN' && session && session.user.id !== me) enterApp(session);
-  if (ev === 'SIGNED_OUT'){ me = null; meP = null; owner = false; canAdmin = false; if (channel) sb.removeChannel(channel); channel = null; boot(); }
+  if (ev === 'SIGNED_OUT'){ $('#dash').hidden = true; me = null; meP = null; owner = false; canAdmin = false; if (channel) sb.removeChannel(channel); channel = null; boot(); }
 });
 
 function showRecover(){
