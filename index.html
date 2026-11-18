@@ -88,7 +88,9 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .bar .sp{flex:1}
 .map{position:relative;width:100%;aspect-ratio:1/1.1;max-height:78vh;margin:0 auto;border-radius:20px;border:2px solid var(--line);
   background-color:#f4e9d6;background-image:radial-gradient(#e3d2b5 1.2px,transparent 1.2px);background-size:22px 22px;overflow:hidden;touch-action:manipulation}
-.map.edit{border:2px dashed var(--acc);touch-action:none}
+.map.edit{border:2px dashed var(--acc);touch-action:pan-y}
+.map.edit .pt,.map.edit .mark{touch-action:none}
+.mark.drag,.pt.drag{z-index:5;transform:translate(-50%,-50%) scale(1.15)}
 .pt{position:absolute;transform:translate(-50%,-50%);border:0;background:transparent;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;width:var(--s,64px);user-select:none;-webkit-user-select:none}
 .pt svg{width:calc(var(--s,64px)*.72);height:calc(var(--s,64px)*.56);filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
 .pt .roof{fill:currentColor}.pt .door{fill:rgba(255,255,255,.55)}
@@ -603,14 +605,24 @@ function bindDrag(map){
       if (e.target.dataset.x !== undefined) return;
       e.preventDefault(); dragging = true;
       try { el.setPointerCapture(e.pointerId); } catch(_){}
-      const r = map.getBoundingClientRect();
-      el.onpointermove = ev => {
-        const x = clamp((ev.clientX - r.left) / r.width * 100), y = clamp((ev.clientY - r.top) / r.height * 100);
+      el.classList.add('drag');
+      let lastX = e.clientX, lastY = e.clientY, scroller = null;
+      const place = () => {
+        const r = map.getBoundingClientRect();
+        const x = clamp((lastX - r.left) / r.width * 100), y = clamp((lastY - r.top) / r.height * 100);
         el.style.left = x + '%'; el.style.top = y + '%';
         if (el.dataset.n) draft.tents[el.dataset.n] = { x, y };
         else { const m = draft.marks[Number(el.dataset.m)]; if (m){ m.x = x; m.y = y; } }
       };
-      el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; dragging = false; };
+      // لو سحبت لطرف الشاشة، الصفحة تنزل أو تطلع بروحها
+      const edge = () => {
+        const H = window.innerHeight, zone = 90;
+        const dy = lastY < zone ? -Math.ceil((zone - lastY) / 6) : lastY > H - zone ? Math.ceil((lastY - (H - zone)) / 6) : 0;
+        if (dy){ window.scrollBy(0, dy); place(); }
+      };
+      scroller = setInterval(edge, 30);
+      el.onpointermove = ev => { lastX = ev.clientX; lastY = ev.clientY; place(); };
+      el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; dragging = false; clearInterval(scroller); el.classList.remove('drag'); };
     };
   });
 }
