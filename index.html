@@ -179,6 +179,22 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .authbox h1{margin:4px 0 6px;font-size:24px}
 .authbox form{text-align:right}
 [hidden]{display:none!important}
+.pay{font-size:14px;font-weight:800;border-radius:10px;padding:6px 10px;margin-top:8px}
+.pay.unpaid{background:var(--overbg);color:var(--over)}
+.pay.part{background:var(--soonbg);color:#a87a00}
+.pay.ok{background:var(--bkbg);color:var(--bk)}
+.pay.ok span{font-weight:500}
+.cash{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 10px}
+.cash div{background:var(--bkbg);color:var(--bk);border-radius:12px;padding:10px;text-align:center}
+.cash div.bad{background:var(--overbg);color:var(--over)}
+.cash small{display:block;font-weight:700}
+.cash b{font-size:17px}
+.lg{border:1px solid var(--line);border-radius:12px;padding:8px 10px;margin-top:8px;font-size:14px;border-inline-start:4px solid var(--line)}
+.lg.bad{border-inline-start-color:var(--over);background:var(--overbg)}
+.lg.warn{border-inline-start-color:var(--soon);background:var(--soonbg)}
+.lg.good{border-inline-start-color:var(--bk)}
+.lg .lh{display:flex;justify-content:space-between}
+.lg small{color:var(--mut)}
 .linkbtn{border:0;background:none;color:var(--acc);font-weight:700;margin-top:14px;cursor:pointer;text-decoration:underline}
 </style>
 </head>
@@ -234,7 +250,10 @@ function canBook(c){ return !!c && !!meP && (owner || (meP.can_book && meP.cafe_
 async function q(p){ const { data, error } = await p; if (error) throw error; return data; }
 function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.tent, start: r.start_h, end: r.end_h, name: r.name,
   phone: r.phone || '', people: r.people, note: r.note || '', rate: Number(r.rate), price: Number(r.price), done: r.done,
-  by: r.created_by, at: r.created_at ? new Date(r.created_at).getTime() : 0 }; }
+  by: r.created_by, at: r.created_at ? new Date(r.created_at).getTime() : 0,
+  paid: !!r.paid, payMethod: r.pay_method, paidAmount: Number(r.paid_amount || 0), paidBy: r.paid_by, paidAt: r.paid_at ? new Date(r.paid_at).getTime() : 0 }; }
+const PM = { cash: '💵 كاش', knet: '💳 كي نت' };
+function due(b){ return Math.max(0, Math.round((Number(b.price) - (b.paid ? b.paidAmount : 0)) * 1000) / 1000); }
 function normC(r){ return { id: r.id, name: r.name, tents: r.tents, price: Number(r.price), open: r.open, close: r.close, layout: r.layout || {}, order: r.sort }; }
 function pname(id){ return (people[id] && people[id].display_name) || 'موظف'; }
 let cafes = [], bookings = [], selCafe = null, selDate = dstr(new Date()), selHour = null;
@@ -318,10 +337,11 @@ function render(){
   for (let n = 1; n <= total; n++) cnt[tentState(cafe, n, H).s]++;
   const live = isLive(cafe);
   const income = bookings.filter(b => b.cafeId === cafe.id && b.name).reduce((s,b) => s + (Number(b.price)||0), 0);
+  const collected = bookings.filter(b => b.cafeId === cafe.id && b.paid).reduce((s,b) => s + (Number(b.paidAmount)||0), 0);
   const when = live ? 'الحين' : 'الساعة ' + hl(H);
   stats.innerHTML = `<div class="stat f"><span>فاضية<br><small>${when}</small></span><b>${cnt.free}</b></div>
     <div class="stat b"><span>محجوزة<br><small>${when}</small></span><b>${cnt.busy + cnt.soon}</b></div>
-    <div class="stat m"><span>دخل اليوم</span><b style="font-size:18px">${money(income)}</b></div>
+    <button class="stat m" id="cashBtn" style="border:0;cursor:pointer;font:inherit;text-align:right"><span>💰 الصندوق<br><small>انقبض ${money(collected)}</small></span><b style="font-size:16px">${money(income)}</b></button>
     ${cnt.soon ? `<div class="stat y"><span>⏳ قرب يخلص وقتها</span><b>${cnt.soon}</b></div>` : ''}
     ${cnt.over ? `<div class="stat o"><span>⏰ خلص وقتها</span><b>${cnt.over}</b></div>` : ''}`;
   let hc = '';
@@ -330,6 +350,7 @@ function render(){
     hc += `<button class="hc ${h===H?'on':''} ${free===0?'full':''}" data-h="${h}"><b>${hl(h)}</b><small>${free===0 ? 'فل' : free + ' فاضية'}</small></button>`;
   }
   hours.innerHTML = total ? hc : '';
+  const cb = $('#cashBtn'); if (cb) cb.onclick = () => openCash();
   hours.querySelectorAll('.hc').forEach(b => b.onclick = () => { selHour = Number(b.dataset.h); render(); });
 
   const acc = $('#access');
@@ -369,6 +390,7 @@ function errText(e){
   if (e && e.message === 'range') return 'وقت النهاية لازم يكون بعد وقت البداية.';
   const c = e && e.code;
   if (c === '23P01') return 'هالوقت محجوز على هالخيمة. اختار وقت ثاني.';
+  if (/paid_locked/.test((e && e.message) || '')) return 'هالحجز مدفوع، ما يصير تعدّله أو تحذفه. كلّم المالك.';
   if (c === '42501' || /row-level security|permission/i.test((e && e.message) || '')) return 'ما عندك صلاحية تعدّل هني.';
   return 'صار خطأ، تأكد من النت وجرب مرة ثانية.';
 }
@@ -393,14 +415,26 @@ function openTent(cafe, n){
       flag = `<div class="flag soon">⏳ باقي ${endM - m} دقيقة</div>`;
       if (!RO) extra = `<button class="btn ghost" data-ext="${esc(b.id)}">➕ تمديد ساعة</button>`;
     } else if (b.done){ flag = `<div class="flag done">✔️ طلع الزبون</div>`; }
+    const left = due(b);
+    // طلع الزبون ما يصير إلا بعد ما يندفع الحساب كامل
+    if (left > 0) extra = extra.replace(/<button class="btn green" data-done="[^"]*">✅ طلع الزبون<\/button>/, '');
+    let pay = '';
+    if (!b.paid) pay = `<div class="pay unpaid">⏳ ما انحسب · ${money(b.price)}</div>`;
+    else if (left > 0) pay = `<div class="pay part">⚠️ انقبض ${money(b.paidAmount)} · باقي ${money(left)} (تمديد)</div>`;
+    else pay = `<div class="pay ok">✅ مدفوع ${money(b.paidAmount)} · ${PM[b.payMethod] || ''} · <span>${esc(pname(b.paidBy))}</span></div>`;
+    let payBtns = '';
+    if (!RO && left > 0) payBtns = `<div class="actions"><button class="btn green" data-pay="${esc(b.id)}" data-m="cash">💵 قبض ${money(left)} كاش</button><button class="btn green" data-pay="${esc(b.id)}" data-m="knet">💳 كي نت</button></div>`;
+    if (owner && b.paid) payBtns += `<div class="actions"><button class="btn ghost" data-unpay="${esc(b.id)}">↩️ إلغاء الدفع (المالك)</button></div>`;
+    const lockEdit = b.paid && !owner;
     return `<div class="bk">${flag}<div class="h"><b>${esc(b.name)}</b><span class="t">${hl(bStart(b,cafe))} – ${hl(bEnd(b,cafe))}</span></div>
       <div class="m">${hrsL(hrs)} · <b style="color:var(--ink)">${money(b.price)}</b>
       ${b.phone ? `<br>📞 <a href="tel:${esc(b.phone)}" dir="ltr">${esc(b.phone)}</a>` : ''}
       ${b.people ? `<br>👥 ${esc(b.people)} أشخاص` : ''}
       ${b.note ? `<br>📝 ${esc(b.note)}` : ''}
       <br><span data-by="${esc(b.by || '')}" data-at="${esc(b.at || '')}">سجّله: …</span></div>
+      ${pay}${payBtns}
       ${extra ? `<div class="actions">${extra}</div>` : ''}
-      ${RO ? '' : `<div class="actions"><button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button><button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button></div>`}</div>`;
+      ${RO ? '' : lockEdit ? '<div class="m" style="margin-top:6px">🔒 الحجز مدفوع: التعديل والإلغاء للمالك بس.</div>' : `<div class="actions"><button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button><button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button></div>`}</div>`;
   }).join('');
   openSheet(`<h2>خيمة ${n}</h2><div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
     <div class="sub" style="margin:0">${RO ? 'الأوقات (اطلاع فقط):' : 'اضغط على ساعة فاضية للحجز:'}</div>
@@ -417,6 +451,19 @@ function openTent(cafe, n){
     if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد؟'; return; }
     b.disabled = true;
     try { await q(sb.from('bookings').delete().eq('id', b.dataset.del)); await loadBookings(); openTent(cafe, n); }
+    catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
+  });
+  $('#sheet').querySelectorAll('[data-pay]').forEach(b => b.onclick = async () => {
+    const bk = list.find(x => x.id === b.dataset.pay); if (!bk) return;
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'تأكيد قبض ' + money(due(bk)) + ' ' + (b.dataset.m === 'cash' ? 'كاش' : 'كي نت') + '؟'; return; }
+    b.disabled = true;
+    try { await q(sb.from('bookings').update({ paid: true, pay_method: b.dataset.m, paid_amount: bk.price }).eq('id', bk.id)); await loadBookings(); }
+    catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
+  });
+  $('#sheet').querySelectorAll('[data-unpay]').forEach(b => b.onclick = async () => {
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد تلغي الدفع؟'; return; }
+    b.disabled = true;
+    try { await q(sb.from('bookings').update({ paid: false }).eq('id', b.dataset.unpay)); await loadBookings(); }
     catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
   });
   $('#sheet').querySelectorAll('[data-done]').forEach(b => b.onclick = async () => {
@@ -507,7 +554,7 @@ function openSettings(){
   const list = cafes.map(c => { const C = cfg(c); return `<div class="cafeRow"><div><b>${esc(c.name)}</b><small>${tentsOf(c)} خيمة · ${money(C.price)}/ساعة · ${hl(C.open)}–${hl(C.close)}</small><small class="mn">${esc(mgrNames(c))}</small></div>
       <button class="mini" data-e="${esc(c.id)}">تعديل</button><button class="mini d" data-d="${esc(c.id)}">حذف</button></div>`; }).join('')
       || '<div class="sub">ما في مقاهي للحين.</div>';
-  openSheet(`<div class="seg" style="margin-bottom:12px"><button class="on">🏪 المقاهي</button><button id="toUsers">👥 الموظفين</button></div>
+  openSheet(`${segHtml('cafes')}
     <h2>⚙️ إدارة المقاهي</h2><div class="sub">المقاهي، عدد الخيام، سعر الساعة وأوقات الدوام</div>
     ${list}<hr>
     <form id="cf"><b id="cft">➕ إضافة مقهى</b>
@@ -521,7 +568,7 @@ function openSettings(){
       <div class="actions"><button class="btn" type="submit">حفظ</button><button class="btn ghost" type="button" id="cx">إغلاق</button></div>
     </form>`);
   $('#cx').onclick = closeSheet;
-  $('#toUsers').onclick = openUsers;
+  bindSeg();
   const form = $('#cf');
   $('#sheet').querySelectorAll('[data-e]').forEach(b => b.onclick = () => {
     const c = cafes.find(x => x.id === b.dataset.e), C = cfg(c);
@@ -715,7 +762,7 @@ function openUsers(){
       return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small></div>
         <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
     }).join('');
-  openSheet(`<div class="seg" style="margin-bottom:12px"><button id="toCafes">🏪 المقاهي</button><button class="on">👥 الموظفين</button></div>
+  openSheet(`${segHtml('users')}
     <h2>👥 الموظفين</h2><div class="sub">كل موظف يدخل باسم مستخدم ورقم سري. حدد مقهاه وهل يقدر يحجز أو يشوف بس.</div>
     ${list}<hr>
     <form id="uf"><b id="uft">➕ إضافة موظف</b>
@@ -731,7 +778,7 @@ function openUsers(){
       <div class="actions"><button class="btn" type="submit">حفظ</button><button class="btn ghost" type="button" id="cx">إغلاق</button></div>
     </form>`);
   $('#cx').onclick = closeSheet;
-  $('#toCafes').onclick = openSettings;
+  bindSeg();
   const form = $('#uf');
   $('#sheet').querySelectorAll('[data-ue]').forEach(b => b.onclick = () => {
     const p = people[b.dataset.ue]; if (!p) return;
@@ -761,6 +808,104 @@ function openUsers(){
       btn.disabled = false;
     }
   };
+}
+
+
+/* ---------- تبويبات الإعدادات ---------- */
+function segHtml(on){
+  const t = (k, label) => `<button data-seg="${k}" class="${on === k ? 'on' : ''}">${label}</button>`;
+  return `<div class="seg" style="margin-bottom:12px;overflow-x:auto">${t('cafes','🏪 المقاهي')}${t('users','👥 الموظفين')}${t('log','📜 السجل')}</div>`;
+}
+function bindSeg(){
+  $('#sheet').querySelectorAll('[data-seg]').forEach(b => b.onclick = () => ({ cafes: openSettings, users: openUsers, log: openLog })[b.dataset.seg]());
+}
+
+/* ---------- الصندوق ---------- */
+async function openCash(){
+  const cafe = cafes.find(c => c.id === selCafe); if (!cafe) return;
+  const sum = list => { const o = { cash: 0, knet: 0, due: 0, total: 0, n: list.length };
+    list.forEach(b => { o.total += Number(b.price) || 0; if (b.paid) o[b.payMethod === 'knet' ? 'knet' : 'cash'] += b.paidAmount; o.due += due(b); }); return o; };
+  const mine = bookings.filter(b => b.cafeId === cafe.id && b.name), S = sum(mine);
+  const byEmp = {};
+  mine.filter(b => b.paid).forEach(b => { const k = b.paidBy || '?'; byEmp[k] = byEmp[k] || { cash: 0, knet: 0 }; byEmp[k][b.payMethod === 'knet' ? 'knet' : 'cash'] += b.paidAmount; });
+  // المالك: نحسب منو قبض كم بالضبط من السجل (لو موظف قبض جزء وموظف ثاني قبض الباقي)
+  if (owner){
+    try {
+      const logs = await q(sb.from('booking_log').select('action, actor, before, after').eq('date', selDate).eq('cafe_id', cafe.id).in('action', ['paid','unpaid']).order('id'));
+      if (logs.length){
+        for (const k in byEmp) delete byEmp[k];
+        logs.forEach(r => {
+          const a = r.after || {}, bf = r.before || {};
+          const before = bf.paid ? Number(bf.paid_amount) || 0 : 0, after = a.paid ? Number(a.paid_amount) || 0 : 0;
+          const delta = after - before, meth = (r.action === 'paid' ? a.pay_method : bf.pay_method) === 'knet' ? 'knet' : 'cash';
+          const k = r.actor || '?'; byEmp[k] = byEmp[k] || { cash: 0, knet: 0 }; byEmp[k][meth] += delta;
+        });
+      }
+    } catch(_){}
+  }
+  const empRows = Object.entries(byEmp).map(([id, v]) => `<div class="kv"><span>${esc(pname(id))}</span><b>💵 ${money(v.cash)} · 💳 ${money(v.knet)}</b></div>`).join('') || '<div class="sub">ما انقبض شي للحين.</div>';
+  const unpaid = mine.filter(b => due(b) > 0).sort((a,b) => bStart(a,cafe) - bStart(b,cafe))
+    .map(b => `<div class="kv"><span>خيمة ${b.tent} · ${esc(b.name)} · ${hl(bStart(b,cafe))}–${hl(bEnd(b,cafe))}</span><b style="color:var(--over)">${money(due(b))}</b></div>`).join('');
+  const all = owner && cafes.length > 1 ? cafes.map(c => { const x = sum(bookings.filter(b => b.cafeId === c.id && b.name));
+      return `<div class="kv"><span>${esc(c.name)}</span><b>${money(x.cash + x.knet)} <small style="color:var(--mut)">من ${money(x.total)}</small></b></div>`; }).join('') : '';
+  openSheet(`<h2>💰 الصندوق</h2><div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
+    <div class="cash">
+      <div><small>💵 كاش</small><b>${money(S.cash)}</b></div>
+      <div><small>💳 كي نت</small><b>${money(S.knet)}</b></div>
+      <div class="${S.due > 0 ? 'bad' : ''}"><small>⏳ ما انحسب</small><b>${money(S.due)}</b></div>
+    </div>
+    <div class="kv"><span>مجموع الحجوزات (${S.n})</span><b>${money(S.total)}</b></div>
+    <div class="kv"><span><b>لازم يكون بالصندوق كاش</b></span><b style="color:var(--bk);font-size:18px">${money(S.cash)}</b></div>
+    <h3 style="margin:16px 0 4px;font-size:16px">👤 منو قبض</h3>${empRows}
+    ${unpaid ? `<h3 style="margin:16px 0 4px;font-size:16px;color:var(--over)">⏳ حجوزات ما انحسبت</h3>${unpaid}` : ''}
+    ${all ? `<h3 style="margin:16px 0 4px;font-size:16px">🏪 كل المقاهي (انقبض من المجموع)</h3>${all}` : ''}
+    <div class="actions"><button class="btn ghost" id="cx">إغلاق</button></div>`);
+  $('#cx').onclick = closeSheet;
+}
+
+/* ---------- سجل التعديلات (للمالك) ---------- */
+function logText(r){
+  const a = r.after || {}, b = r.before || {}, x = r.after || r.before || {};
+  const range = x.start_h != null ? `${hl(x.start_h)}–${hl(x.end_h)}` : '';
+  switch (r.action){
+    case 'create': return { t: `سجّل حجز · ${money(a.price)}${a.paid ? ' · مدفوع' : ''}` };
+    case 'delete': return { t: `حذف الحجز${b.paid ? ' وهو مدفوع ' + money(b.paid_amount) : ''}`, bad: true };
+    case 'paid': return { t: `قبض ${money((a.paid_amount || 0) - (b.paid ? (b.paid_amount || 0) : 0))} · ${PM[a.pay_method] || ''}`, good: true };
+    case 'unpaid': return { t: `ألغى الدفع (${money(b.paid_amount)})`, bad: true };
+    case 'extend': return { t: `مدّد لين ${hl(a.end_h)} · السعر صار ${money(a.price)}` };
+    case 'done': return { t: 'طلع الزبون' };
+    default: {
+      const ch = [];
+      if (a.name !== b.name) ch.push(`الاسم: ${esc(b.name)} ← ${esc(a.name)}`);
+      if (a.start_h !== b.start_h || a.end_h !== b.end_h) ch.push(`الوقت: ${hl(b.start_h)}–${hl(b.end_h)} ← ${hl(a.start_h)}–${hl(a.end_h)}`);
+      if (a.tent !== b.tent) ch.push(`الخيمة: ${b.tent} ← ${a.tent}`);
+      if (Number(a.price) !== Number(b.price)) ch.push(`السعر: ${money(b.price)} ← ${money(a.price)}`);
+      if ((a.phone || '') !== (b.phone || '')) ch.push('رقم الجوال');
+      if ((a.note || '') !== (b.note || '') || a.people !== b.people) ch.push('الملاحظات/العدد');
+      return { t: 'عدّل الحجز' + (ch.length ? ': ' + ch.join(' · ') : ''), warn: Number(a.price) < Number(b.price) };
+    }
+  }
+}
+async function openLog(){
+  openSheet(`${segHtml('log')}<h2>📜 سجل التعديلات</h2>
+    <div class="sub">كل شي صار على حجوزات ${esc($('#dlabel').textContent)}، باسم الموظف ووقته. السجل ما ينحذف ولا ينعدّل.</div>
+    <div id="logList" class="sub">جاري التحميل…</div>
+    <div class="actions"><button class="btn ghost" id="cx">إغلاق</button></div>`);
+  bindSeg(); $('#cx').onclick = closeSheet;
+  try {
+    const rows = await q(sb.from('booking_log').select('*').eq('date', selDate).order('at', { ascending: false }).limit(300));
+    const box = $('#logList'); if (!box) return;
+    if (!rows.length){ box.textContent = 'ما في أي حركة على هاليوم.'; return; }
+    box.className = '';
+    box.innerHTML = rows.map(r => {
+      const x = r.after || r.before || {}, c = cafes.find(k => k.id === r.cafe_id), L = logText(r);
+      const tm = new Date(r.at).toLocaleTimeString('ar-KW-u-nu-latn', { hour: 'numeric', minute: '2-digit' });
+      return `<div class="lg ${L.bad ? 'bad' : L.warn ? 'warn' : L.good ? 'good' : ''}">
+        <div class="lh"><b>${esc(pname(r.actor))}</b><small>${tm}</small></div>
+        <div>${L.t}</div>
+        <small>${esc(c ? c.name : '')} · خيمة ${r.tent} · ${esc(x.name || '')} · ${x.start_h != null ? hl(x.start_h) + '–' + hl(x.end_h) : ''}</small></div>`;
+    }).join('');
+  } catch(_){ const box = $('#logList'); if (box) box.textContent = 'ما قدرنا نحمّل السجل.'; }
 }
 
 /* ---------- البيانات ---------- */
