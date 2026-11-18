@@ -23,9 +23,11 @@ header h1{font-size:22px;margin:0;flex:1;font-weight:800}
 header h1 span{color:var(--acc)}
 .icon{border:1px solid var(--line);background:var(--card);border-radius:12px;width:42px;height:42px;font-size:19px;cursor:pointer}
 .datebar{display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px}
-.datebar .lbl{flex:1;text-align:center}
+.datebar .lbl{flex:1;text-align:center;position:relative;cursor:pointer;border-radius:10px;padding:2px 0}
+.datebar .lbl:active{background:var(--acc2)}
 .datebar .lbl b{display:block;font-size:17px}
-.datebar .lbl input{border:0;background:transparent;color:var(--mut);font-size:13px;text-align:center}
+.datebar .lbl small{color:var(--mut);font-size:13px}
+.datebar .lbl input{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;margin:0;padding:0;cursor:pointer;-webkit-appearance:none;appearance:none;font-size:16px}
 .nav{border:0;background:var(--acc2);color:var(--acc);border-radius:10px;width:40px;height:40px;font-size:18px;cursor:pointer;font-weight:700}
 .todayBtn{border:0;background:var(--acc);color:#fff;border-radius:10px;padding:0 12px;height:40px;cursor:pointer;font-weight:700}
 .tabs{display:flex;gap:8px;overflow-x:auto;padding:12px 0 4px;scrollbar-width:none}
@@ -189,7 +191,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 
   <div class="datebar">
     <button class="nav" id="prev" title="اليوم السابق">→</button>
-    <div class="lbl"><b id="dlabel"></b><input type="date" id="date"></div>
+    <label class="lbl" for="date"><b id="dlabel"></b><small>📅 <span id="dsmall"></span> ▾</small><input type="date" id="date" aria-label="اختيار التاريخ"></label>
     <button class="nav" id="next" title="اليوم التالي">←</button>
     <button class="todayBtn" id="today">اليوم</button>
   </div>
@@ -280,7 +282,7 @@ function dateLabel(){
   if (selDate === today) t = 'اليوم · ' + t;
   else if (selDate === shift(today,1)) t = 'بكرة · ' + t;
   else if (selDate === shift(today,-1)) t = 'أمس · ' + t;
-  $('#dlabel').textContent = t; $('#date').value = selDate;
+  $('#dlabel').textContent = t; $('#date').value = selDate; $('#dsmall').textContent = selDate.split('-').reverse().join('/');
 }
 
 function strip(c, n, H){
@@ -669,6 +671,7 @@ $('#prev').onclick = () => setDate(shift(selDate,-1));
 $('#next').onclick = () => setDate(shift(selDate,1));
 $('#today').onclick = () => setDate(dstr(new Date()));
 $('#date').onchange = e => setDate(e.target.value);
+$('#date').onclick = e => { try { if (e.target.showPicker) e.target.showPicker(); } catch(_){} };
 
 /* ---------- الموظفين ---------- */
 function mgrNames(c){
