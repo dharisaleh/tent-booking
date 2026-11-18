@@ -626,8 +626,8 @@ function renderEditbar(){
   const eb = $('#editbar');
   if (!editing){ eb.innerHTML = ''; return; }
   if (eb.firstChild) return;
-  eb.innerHTML = `<div class="editbar"><p>اسحب الخيام والعلامات لمكانها الصحيح، وبعدين اضغط حفظ.</p>
-    <div class="row"><input class="f" id="markT" placeholder="علامة: المدخل، الكاشير، الدخان…" maxlength="30"><button class="mini" id="addMark" style="flex:none">➕ علامة</button></div>
+  eb.innerHTML = `<div class="editbar"><p>اسحب الخيام لمكانها الصحيح. وتقدر تضيف أماكن مثل المدخل والكاشير عشان الموظف يعرف وين الخيمة. وبعدين اضغط حفظ.</p>
+    <div class="row"><input class="f" id="markT" placeholder="اسم المكان: المدخل، الكاشير، الحمامات…" maxlength="30"><button class="mini" id="addMark" style="flex:none">➕ أضف مكان</button></div>
     <div class="row" style="margin-top:8px;align-items:center"><b id="tcount" style="flex:none"></b><button class="mini" id="addTent">➕ أضف خيمة</button><button class="mini d" id="delTent">➖ إزالة خيمة</button></div>
     <div class="err" id="eerr"></div>
     <div class="actions"><button class="btn green" id="saveMap">💾 حفظ</button><button class="btn ghost" id="autoMap">🔄 تلقائي</button><button class="btn ghost" id="cancelMap">إلغاء</button></div></div>`;
