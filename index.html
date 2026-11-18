@@ -8,7 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="حجز الخيام">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛺</text></svg>">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -179,6 +180,9 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .authbox h1{margin:4px 0 6px;font-size:24px}
 .authbox form{text-align:right}
 [hidden]{display:none!important}
+header h1{display:flex;align-items:center;gap:8px}
+.hlogo{width:44px;height:44px;object-fit:contain;border-radius:10px;background:#fff}
+.alogo{width:120px;height:120px;object-fit:contain;display:block;margin:0 auto}
 .pay{font-size:14px;font-weight:800;border-radius:10px;padding:6px 10px;margin-top:8px}
 .pay.unpaid{background:var(--overbg);color:var(--over)}
 .pay.part{background:var(--soonbg);color:#a87a00}
@@ -202,7 +206,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 <div id="auth" hidden></div>
 <div class="wrap" id="app" hidden>
   <header>
-    <h1>⛺ حجز <span>الخيام</span></h1>
+    <h1><img src="logo.png" alt="المقاهي الشعبية" class="hlogo"> حجز <span>الخيام</span></h1>
     <button class="icon" id="acct" title="حسابي">👤</button>
     <button class="icon" id="gear" title="الإعدادات" hidden>⚙️</button>
   </header>
@@ -948,7 +952,7 @@ function showAuth(mode, msg){
   $('#app').hidden = true; $('#auth').hidden = false;
   const setup = mode === 'setup';
   $('#auth').innerHTML = `<div class="authbox">
-    <div style="font-size:46px">⛺</div><h1>حجز الخيام</h1>
+    <img src="logo.png" alt="المقاهي الشعبية" class="alogo"><h1>حجز الخيام</h1>
     <div class="sub">${setup ? 'أول مرة: سوّ حساب المالك (انت). هالحساب يقدر يضيف الموظفين ويعدّل المقاهي.' : 'سجّل دخول باسم المستخدم والرقم السري'}</div>
     <form id="af">
       ${setup ? '<label>رمز التفعيل</label><input class="f" name="code" dir="ltr" inputmode="numeric" required maxlength="6" placeholder="6 أرقام"><label>اسمك</label><input class="f" name="dname" required maxlength="60" placeholder="أبو راكان">' : ''}
