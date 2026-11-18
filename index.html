@@ -348,7 +348,7 @@ function render(){
     html += `<button class="tent ${st.s}" data-n="${n}"><div class="n">خيمة ${n}<span class="pill">${ST_LABEL[st.s]}</span></div>
       ${strip(cafe, n, H)}<div class="meta">${lines || (canBook(cafe) ? 'ما عليها حجز · اضغط للحجز' : 'ما عليها حجز')}</div></button>`;
   }
-  grid.innerHTML = html + `<div style="grid-column:1/-1"><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span>${live ? '<span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span>' : ''}</div></div>`;
+  grid.innerHTML = html + `<div style="grid-column:1/-1"><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div></div>`;
   bindTentClicks(cafe, '.tent');
 }
 
@@ -588,7 +588,7 @@ function renderMap(cafe, total, H){
     h += `<button class="pt ${st.s}" data-drag data-n="${n}" style="left:${p.x}%;top:${p.y}%">${tentSvg}<b>${n}</b>${b ? `<small>${esc(b.name)}</small>` : (crowded ? '' : '<small>فاضية</small>')}${strip(cafe, n, H)}</button>`;
   }
   const live = isLive(cafe);
-  h += `</div><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span>${live ? '<span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span>' : ''}</div>`;
+  h += `</div><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div>`;
   grid.innerHTML = h;
   bindTentClicks(cafe, '.pt');
   if (editing) bindDrag($('#map'));
