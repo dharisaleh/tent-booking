@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="حجز الخيام">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -180,9 +181,9 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .authbox h1{margin:4px 0 6px;font-size:24px}
 .authbox form{text-align:right}
 [hidden]{display:none!important}
-#toasts{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:8px;right:8px;z-index:30;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+#toasts{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 10px);left:8px;right:8px;z-index:30;display:flex;flex-direction:column-reverse;gap:6px;pointer-events:none}
 .toast{pointer-events:auto;max-width:560px;margin:0 auto;width:100%;border-radius:14px;padding:10px 12px;display:flex;gap:8px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.18);font-weight:800;animation:drop .25s ease-out}
-@keyframes drop{from{transform:translateY(-20px)}}
+@keyframes drop{from{transform:translateY(20px)}}
 .toast.soon{background:#fff3c4;color:#7a5a00;border:2px solid var(--soon)}
 .toast.over{background:#ffe1e1;color:#a11d1d;border:2px solid var(--over);animation:drop .25s ease-out}
 .toast div{flex:1}
@@ -1184,6 +1185,95 @@ async function checkAlerts(){
 setInterval(checkAlerts, 20000);
 paintBell();
 
+
+/* ---------- إشعارات الجوال (Web Push) ---------- */
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let swReg = null;
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(r => swReg = r).catch(() => {});
+  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openDeepLink(new URL(e.data.open)); });
+}
+function b64ToBytes(b64){ const p = '='.repeat((4 - b64.length % 4) % 4), s = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); }
+async function pushState(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return isIOS() && !isStandalone() ? 'ios-home' : 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  try { const reg = swReg || await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription(); return sub ? 'on' : 'off'; } catch(_){ return 'off'; }
+}
+async function saveSub(sub){
+  const j = sub.toJSON();
+  const row = { endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, ua: navigator.userAgent.slice(0, 200) };
+  const { error } = await sb.from('push_subs').upsert(row, { onConflict: 'endpoint' });
+  return error;
+}
+async function pushOn(){
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') throw new Error('denied');
+  const reg = swReg || await navigator.serviceWorker.ready;
+  const key = await q(sb.rpc('vapid_public_key'));
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+  let err = await saveSub(sub);
+  if (err){ // الجهاز كان مسجّل باسم موظف ثاني: نسوي اشتراك جديد
+    try { await sub.unsubscribe(); } catch(_){}
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+    err = await saveSub(sub); if (err) throw err;
+  }
+}
+async function pushOff(silent){
+  try {
+    const reg = swReg || (('serviceWorker' in navigator) ? await navigator.serviceWorker.getRegistration() : null);
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (sub){ await sb.from('push_subs').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+  } catch(_){ if (!silent) throw _; }
+}
+async function pushTest(){
+  const { data: { session } } = await sb.auth.getSession();
+  const r = await fetch(SB_URL + '/functions/v1/push-alerts', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SB_KEY, Authorization: 'Bearer ' + (session ? session.access_token : '') }, body: JSON.stringify({ action: 'test' }) });
+  const j = await r.json().catch(() => ({})); return j.sent || 0;
+}
+async function drawPushBox(){
+  const box = $('#pushBox'); if (!box) return;
+  const st = await pushState();
+  if (st === 'ios-home'){
+    box.innerHTML = `<div class="pay part" style="line-height:1.8">عشان الإشعارات تشتغل على الآيفون:<br>1. اضغط زر المشاركة <b>⬆️</b> تحت بسفاري<br>2. اختار <b>Add to Home Screen</b> (إضافة إلى الشاشة الرئيسية)<br>3. افتح البرنامج من الأيقونة اللي على الشاشة، وارجع هني وفعّلها</div>`;
+  } else if (st === 'unsupported'){
+    box.innerHTML = '<div class="pay unpaid">هالجهاز أو المتصفح ما يدعم الإشعارات. حدّث الجوال (iOS 16.4 أو أحدث).</div>';
+  } else if (st === 'denied'){
+    box.innerHTML = '<div class="pay unpaid">الإشعارات مرفوضة. روح إعدادات الجوال ← الإشعارات ← حجز الخيام، وفعّلها.</div>';
+  } else if (st === 'off'){
+    box.innerHTML = '<button class="btn green" id="pOn" style="width:100%">🔔 تفعيل الإشعارات على هالجهاز</button><div class="err" id="perr"></div>';
+    $('#pOn').onclick = async () => { const b = $('#pOn'); b.disabled = true; b.textContent = 'لحظة…';
+      try { await pushOn(); await drawPushBox(); try { await pushTest(); } catch(_){} }
+      catch(e){ $('#perr').textContent = e.message === 'denied' ? 'لازم تضغط "سماح" عشان توصلك الإشعارات.' : 'ما قدرنا نفعّلها، جرب مرة ثانية.'; b.disabled = false; b.textContent = '🔔 تفعيل الإشعارات على هالجهاز'; } };
+  } else {
+    box.innerHTML = '<div class="pay ok">✅ الإشعارات شغّالة على هالجهاز</div><div class="actions"><button class="btn ghost" id="pTest">📨 إشعار تجربة</button><button class="btn danger" id="pOff">إيقاف</button></div><div class="err" id="perr"></div>';
+    $('#pTest').onclick = async () => { const n = await pushTest().catch(() => 0); $('#perr').style.color = n ? 'var(--bk)' : ''; $('#perr').textContent = n ? '✅ انرسل، المفروض يوصلك الحين.' : 'ما انرسل، جرب توقف الإشعارات وتفعّلها من جديد.'; };
+    $('#pOff').onclick = async () => { await pushOff(true); drawPushBox(); };
+  }
+}
+// شريط يذكّر الموظف يفعّل الإشعارات (مرة وحدة لين يفعّلها أو يسكّره)
+async function maybePushNudge(){
+  try { if (localStorage.getItem('pushNudge') === 'x') return; } catch(_){}
+  const st = await pushState(); if (st === 'on' || st === 'unsupported' || st === 'denied') return;
+  const box = $('#toasts'), t = document.createElement('div'); t.className = 'toast soon';
+  t.innerHTML = '<div>📲 فعّل إشعارات الجوال<small>عشان يوصلك تنبيه نهاية الحجز حتى لو الجوال مقفول</small></div>';
+  const o = document.createElement('button'); o.textContent = 'تفعيل'; o.onclick = () => { t.remove(); openAccount(); };
+  const x = document.createElement('button'); x.textContent = '✕'; x.onclick = () => { t.remove(); try { localStorage.setItem('pushNudge', 'x'); } catch(_){} };
+  t.append(o, x); box.prepend(t);
+}
+// فتح خيمة من رابط الإشعار
+function openDeepLink(u){
+  const d = u.searchParams.get('d'), c = u.searchParams.get('c'), t = Number(u.searchParams.get('t'));
+  if (!d || !c || !t) return;
+  try { history.replaceState(null, '', location.pathname); } catch(_){}
+  const go = () => { const cafe = cafes.find(x => x.id === c); if (!cafe) return;
+    if (!$('#dash').hidden) closeDash();
+    selCafe = c; if (selDate !== d){ selDate = d; subscribeBookings(); } else render();
+    setTimeout(() => { const cf = cafes.find(x => x.id === c); if (cf) openTent(cf, t); }, 600); };
+  if (cafesLoaded) go(); else setTimeout(go, 1500);
+}
+
 /* ---------- البيانات ---------- */
 async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order('sort'))).map(normC); cafesLoaded = true; render(); }
 async function loadPeople(){
@@ -1257,6 +1347,8 @@ async function enterApp(session){
     await loadCafes();
     subscribeBookings();
     startRealtime();
+    openDeepLink(new URL(location.href));
+    setTimeout(maybePushNudge, 2500);
   } catch(_){ setStatus('ما قدرنا نوصل للبيانات، تأكد من النت.'); }
 }
 async function boot(){
@@ -1303,9 +1395,13 @@ function openAccount(){
     <form id="pf"><label>غيّر رقمك السري</label><input class="f" name="pw" type="password" dir="ltr" autocomplete="new-password" minlength="6" maxlength="72" placeholder="الرقم السري الجديد">
     <div class="err" id="ferr"></div>
     <div class="actions"><button class="btn" type="submit">حفظ الرقم السري</button></div></form><hr>
+    <h3 style="margin:0 0 6px;font-size:16px">📲 إشعارات الجوال</h3>
+    <div class="sub" style="margin-bottom:6px">توصلك حتى لو الجوال مقفول أو البرنامج مسكّر: قبل نهاية الحجز بـ 15 دقيقة، ولما يخلص الوقت.</div>
+    <div id="pushBox" class="sub">…</div><hr>
     <div class="actions"><button class="btn danger" id="lo">🚪 تسجيل خروج</button><button class="btn ghost" id="cx">إغلاق</button></div>`);
   $('#cx').onclick = closeSheet;
-  $('#lo').onclick = async () => { closeSheet(); await sb.auth.signOut(); };
+  $('#lo').onclick = async () => { closeSheet(); await pushOff(true); await sb.auth.signOut(); };
+  drawPushBox();
   $('#pf').onsubmit = async e => {
     e.preventDefault(); const pw = e.target.pw.value;
     if (pw.length < 6){ $('#ferr').textContent = 'الرقم السري لازم 6 أحرف أو أكثر.'; return; }
