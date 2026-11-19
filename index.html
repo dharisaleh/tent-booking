@@ -305,7 +305,7 @@ function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.t
   paid: !!r.paid, payMethod: r.pay_method, paidAmount: Number(r.paid_amount || 0), paidBy: r.paid_by, paidAt: r.paid_at ? new Date(r.paid_at).getTime() : 0 }; }
 const PM = { cash: '💵 كاش', knet: '💳 كي نت' };
 function due(b){ return Math.max(0, Math.round((Number(b.price) - (b.paid ? b.paidAmount : 0)) * 1000) / 1000); }
-function normC(r){ return { id: r.id, name: r.name, tents: r.tents, price: Number(r.price), open: r.open, close: r.close, layout: r.layout || {}, order: r.sort }; }
+function normC(r){ return { id: r.id, name: r.name, tents: r.tents, price: Number(r.price), open: r.open, close: r.close, layout: r.layout || {}, order: r.sort, soon: r.soon_min }; }
 function pname(id){ return (people[id] && people[id].display_name) || 'موظف'; }
 let cafes = [], bookings = [], selCafe = null, selDate = dstr(new Date()), selHour = null;
 let cafesLoaded = false, unsubB = null, loadTimer = null;
@@ -318,7 +318,8 @@ function cfg(c){
   let close = Number.isFinite(Number(c.close)) && c.close !== undefined ? Number(c.close) : 24;
   if (close <= open) close = open + 1;
   const price = c.price !== undefined && Number(c.price) >= 0 ? Number(c.price) : 2;
-  return { open, close, price };
+  const soon = Number(c.soon) >= 1 ? Number(c.soon) : 15;
+  return { open, close, price, soon };
 }
 function tentsOf(c){ return Math.max(0, Math.min(200, Number(c.tents)||0)); }
 function bStart(b, c){ return Number.isFinite(Number(b.start)) && b.start !== null ? Number(b.start) : cfg(c).open; }
@@ -332,14 +333,14 @@ function curHour(c){
   return open;
 }
 
-const SOON = 15; // دقايق قبل النهاية = أصفر
+// وقت التذكير قبل النهاية: لكل مقهى بالإعدادات (cfg(c).soon)، الافتراضي 15 دقيقة
 function nowMin(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 function isLive(c){ return selDate === dstr(new Date()) && curHour(c) === new Date().getHours(); }
 function tentState(c, n, H){
   if (isLive(c)){
     const m = nowMin(), list = tentBookings(c, n);
     const act = list.find(b => bStart(b,c) * 60 <= m && m < bEnd(b,c) * 60);
-    if (act) return { s: bEnd(act,c) * 60 - m <= SOON ? 'soon' : 'busy', b: act, left: bEnd(act,c) * 60 - m };
+    if (act) return { s: bEnd(act,c) * 60 - m <= cfg(c).soon ? 'soon' : 'busy', b: act, left: bEnd(act,c) * 60 - m };
     const over = list.filter(b => !b.done && bEnd(b,c) * 60 <= m).pop();
     if (over) return { s: 'over', b: over };
     return { s: 'free' };
@@ -462,7 +463,7 @@ function openTent(cafe, n){
     if (live && !b.done && endM <= m){
       flag = `<div class="flag over">⏰ خلص وقت الحجز</div>`;
       if (!RO) extra = `<button class="btn green" data-done="${esc(b.id)}">✅ طلع الزبون</button><button class="btn ghost" data-ext="${esc(b.id)}">➕ تمديد ساعة</button>`;
-    } else if (live && stM <= m && m < endM && endM - m <= SOON){
+    } else if (live && stM <= m && m < endM && endM - m <= cfg(cafe).soon){
       flag = `<div class="flag soon">⏳ باقي ${endM - m} دقيقة</div>`;
       if (!RO) extra = `<button class="btn ghost" data-ext="${esc(b.id)}">➕ تمديد ساعة</button>`;
     } else if (b.done){ flag = `<div class="flag done">✔️ طلع الزبون</div>`; }
@@ -602,7 +603,7 @@ function openBook(cafe, n, existing, startH){
 /* ---------- settings ---------- */
 function hourOpts(from, to, sel){ let o = ''; for (let h = from; h <= to; h++) o += `<option value="${h}" ${h===sel?'selected':''}>${hl(h)}</option>`; return o; }
 function openSettings(){
-  const list = cafes.map(c => { const C = cfg(c); return `<div class="cafeRow"><div><b>${esc(c.name)}</b><small>${tentsOf(c)} خيمة · ${money(C.price)}/ساعة · ${hl(C.open)}–${hl(C.close)}</small><small class="mn">${esc(mgrNames(c))}</small></div>
+  const list = cafes.map(c => { const C = cfg(c); return `<div class="cafeRow"><div><b>${esc(c.name)}</b><small>${tentsOf(c)} خيمة · ${money(C.price)}/ساعة · ${hl(C.open)}–${hl(C.close)} · ⏳ تذكير قبل ${C.soon} د</small><small class="mn">${esc(mgrNames(c))}</small></div>
       <button class="mini" data-e="${esc(c.id)}">تعديل</button><button class="mini d" data-d="${esc(c.id)}">حذف</button></div>`; }).join('')
       || '<div class="sub">ما في مقاهي للحين.</div>';
   openSheet(`${segHtml('cafes')}
@@ -615,6 +616,7 @@ function openSettings(){
       <div><label>سعر الساعة (د.ك)</label><input class="f" name="price" type="number" min="0" step="0.25" inputmode="decimal" value="2" required></div></div>
       <div class="row"><div><label>يفتح</label><select class="f" name="open">${hourOpts(6, 23, 15)}</select></div>
       <div><label>يسكر</label><select class="f" name="close">${hourOpts(7, 30, 24)}</select></div></div>
+      <label>⏳ التذكير قبل نهاية الحجز بـ</label><select class="f" name="soon">${[5,10,15,20,25,30,45,60].map(v => `<option value="${v}" ${v===15?'selected':''}>${v} دقيقة</option>`).join('')}</select>
       <div class="err" id="ferr"></div>
       <div class="actions"><button class="btn" type="submit">حفظ</button><button class="btn ghost" type="button" id="cx">إغلاق</button></div>
     </form>`);
@@ -625,6 +627,7 @@ function openSettings(){
     const c = cafes.find(x => x.id === b.dataset.e), C = cfg(c);
     form.id.value = c.id; form.name.value = c.name; form.tents.value = tentsOf(c);
     form.price.value = C.price; form.open.value = C.open; form.close.value = C.close;
+    if (![...form.soon.options].some(o => Number(o.value) === C.soon)) form.soon.add(new Option(C.soon + ' دقيقة', C.soon)); form.soon.value = C.soon;
     $('#cft').textContent = '✏️ تعديل: ' + c.name; form.name.focus();
   });
   $('#sheet').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => {
@@ -636,13 +639,13 @@ function openSettings(){
   form.onsubmit = async e => {
     e.preventDefault();
     const id = form.id.value, name = form.name.value.trim(), tents = Math.max(1, Math.min(200, Number(form.tents.value)||0));
-    const price = Math.max(0, Number(form.price.value) || 0), open = Number(form.open.value), close = Number(form.close.value);
+    const price = Math.max(0, Number(form.price.value) || 0), open = Number(form.open.value), close = Number(form.close.value), soon_min = Math.max(1, Math.min(120, Number(form.soon.value) || 15));
     if (!name || !tents) return;
     if (close <= open){ $('#ferr').textContent = 'وقت السكير لازم بعد وقت الفتح.'; return; }
     const btn = form.querySelector('[type=submit]'); btn.disabled = true;
     try {
-      if (id){ await q(sb.from('cafes').update({ name, tents, price, open, close }).eq('id', id)); }
-      else { await q(sb.from('cafes').insert({ name, tents, price, open, close, sort: Date.now() })); }
+      if (id){ await q(sb.from('cafes').update({ name, tents, price, open, close, soon_min }).eq('id', id)); }
+      else { await q(sb.from('cafes').insert({ name, tents, price, open, close, soon_min, sort: Date.now() })); }
       await loadCafes(); openSettings();
     } catch(err){ $('#ferr').textContent = errText(err); btn.disabled = false; }
   };
@@ -1126,7 +1129,7 @@ $('#bell').onclick = async () => {
     alertsOn = true;
     // المتصفح ما يسمح بالصوت إلا بعد ضغطة من المستخدم: نشغّل صوت صامت الحين عشان نفتح الصوت
     try { player.src = SND.silent; await player.play(); audioReady = true; } catch(_){ audioReady = false; }
-    if (audioReady){ play('soon'); toast('soon', '🔔 التنبيه الصوتي شغّال', 'بيرن الجوال قبل نهاية وقت الحجز بـ ' + SOON + ' دقيقة، ولما يخلص الوقت. خل الصفحة مفتوحة.', null, 6000); }
+    if (audioReady){ play('soon'); toast('soon', '🔔 التنبيه الصوتي شغّال', 'بيرن الجوال قبل نهاية وقت الحجز، ولما يخلص الوقت. خل الصفحة مفتوحة.', null, 6000); }
     keepAwake();
   }
   try { localStorage.setItem('alertsOn', alertsOn ? '1' : '0'); } catch(_){}
@@ -1171,7 +1174,7 @@ async function checkAlerts(){
       const endM = bEnd(b, c) * 60, stM = bStart(b, c) * 60, left = endM - m;
       const open = () => { if (!$('#dash').hidden) closeDash(); selDate = dstr(new Date()); selCafe = c.id; subscribeBookings(); setTimeout(() => openTent(c, Number(b.tent)), 400); };
       const keyS = b.id + ':' + b.end + ':soon', keyO = b.id + ':' + b.end + ':over';
-      if (stM <= m && left > 0 && left <= SOON && !alerted[keyS]){
+      if (stM <= m && left > 0 && left <= cfg(c).soon && !alerted[keyS]){
         alerted[keyS] = now; play('soon');
         toast('soon', `⏳ خيمة ${b.tent} باقي ${left} دقيقة`, `${c.name} · ${b.name} · يخلص ${hl(bEnd(b, c))}`, open);
       }
