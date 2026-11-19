@@ -180,6 +180,17 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .authbox h1{margin:4px 0 6px;font-size:24px}
 .authbox form{text-align:right}
 [hidden]{display:none!important}
+#toasts{position:fixed;top:calc(env(safe-area-inset-top) + 8px);left:8px;right:8px;z-index:30;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.toast{pointer-events:auto;max-width:560px;margin:0 auto;width:100%;border-radius:14px;padding:10px 12px;display:flex;gap:8px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,.18);font-weight:800;animation:drop .25s ease-out}
+@keyframes drop{from{transform:translateY(-20px)}}
+.toast.soon{background:#fff3c4;color:#7a5a00;border:2px solid var(--soon)}
+.toast.over{background:#ffe1e1;color:#a11d1d;border:2px solid var(--over);animation:drop .25s ease-out}
+.toast div{flex:1}
+.toast small{display:block;font-weight:500;color:inherit;opacity:.8}
+.toast button{border:0;border-radius:10px;padding:7px 10px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.8);color:inherit}
+#bell.on{background:var(--soonbg);border-color:var(--soon)}
+#bell.need{animation:pulse 1.2s infinite;border-color:var(--over)}
+
 /* لوحة التحكم */
 .dhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .dhead h1{flex:1;margin:0;font-size:22px}
@@ -238,6 +249,7 @@ header h1{display:flex;align-items:center;gap:8px}
 <div class="wrap" id="app" hidden>
   <header>
     <h1><img src="logo.png" alt="المقاهي الشعبية" class="hlogo"> حجز <span>الخيام</span></h1>
+    <button class="icon" id="bell" title="التنبيه الصوتي">🔕</button>
     <button class="icon" id="dashBtn" title="لوحة التحكم" hidden>📊</button>
     <button class="icon" id="acct" title="حسابي">👤</button>
     <button class="icon" id="gear" title="الإعدادات" hidden>⚙️</button>
@@ -265,6 +277,7 @@ header h1{display:flex;align-items:center;gap:8px}
 </div>
 
 <div class="wrap" id="dash" hidden></div>
+<div id="toasts"></div>
 <div class="back" id="back"><div class="sheet" id="sheet"></div></div>
 
 <script>
@@ -1068,6 +1081,109 @@ function dashBody({ from, to, B, logs }){
   return kpis + flagT + daily + cafesT + empT + hours + tents;
 }
 
+
+/* ---------- التنبيه الصوتي ---------- */
+// الصوت نصنعه بالكود (ملف WAV صغير)، ونشغله كـ صوت ميديا عشان يطلع حتى لو الآيفون على الصامت
+function makeTone(notes){
+  const sr = 22050, parts = [];
+  notes.forEach(([f, ms, vol]) => { const n = Math.floor(sr * ms / 1000);
+    for (let i = 0; i < n; i++){ const env = Math.min(1, i / 300, (n - i) / 300); parts.push(f ? Math.sin(2 * Math.PI * f * i / sr) * env * (vol || .9) : 0); } });
+  const buf = new ArrayBuffer(44 + parts.length * 2), v = new DataView(buf);
+  const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + parts.length * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true);
+  v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, parts.length * 2, true);
+  parts.forEach((x, i) => v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x)) * 32767, true));
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+const SND = {
+  soon: makeTone([[880, 180], [0, 120], [880, 180], [0, 120], [1175, 300]]),
+  over: makeTone([[1320, 160], [0, 80], [990, 160], [0, 80], [1320, 160], [0, 80], [990, 160], [0, 250], [1320, 160], [0, 80], [990, 160], [0, 80], [1320, 160], [0, 80], [990, 300]]),
+  silent: makeTone([[0, 60]])
+};
+const player = new Audio(); player.preload = 'auto';
+let alertsOn = (() => { try { return localStorage.getItem('alertsOn') === '1'; } catch(_){ return false; } })();
+let audioReady = false, wakeLock = null;
+function play(kind){
+  if (!alertsOn || !audioReady) return;
+  try { player.src = SND[kind]; player.currentTime = 0; player.play().catch(() => { audioReady = false; paintBell(); }); } catch(_){}
+  try { if (navigator.vibrate) navigator.vibrate(kind === 'over' ? [300, 150, 300, 150, 300] : [200, 100, 200]); } catch(_){}
+}
+async function keepAwake(){
+  try { if (alertsOn && 'wakeLock' in navigator && !document.hidden && !wakeLock){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => wakeLock = null); } } catch(_){}
+}
+function paintBell(){
+  const b = $('#bell'); if (!b) return;
+  b.textContent = alertsOn ? '🔔' : '🔕';
+  b.classList.toggle('on', alertsOn && audioReady);
+  b.classList.toggle('need', alertsOn && !audioReady);
+  b.title = !alertsOn ? 'التنبيه الصوتي مطفي' : audioReady ? 'التنبيه الصوتي شغّال' : 'اضغط عشان يشتغل الصوت';
+}
+$('#bell').onclick = async () => {
+  if (alertsOn && audioReady){ alertsOn = false; }
+  else {
+    alertsOn = true;
+    // المتصفح ما يسمح بالصوت إلا بعد ضغطة من المستخدم: نشغّل صوت صامت الحين عشان نفتح الصوت
+    try { player.src = SND.silent; await player.play(); audioReady = true; } catch(_){ audioReady = false; }
+    if (audioReady){ play('soon'); toast('soon', '🔔 التنبيه الصوتي شغّال', 'بيرن الجوال قبل نهاية وقت الحجز بـ ' + SOON + ' دقيقة، ولما يخلص الوقت. خل الصفحة مفتوحة.', null, 6000); }
+    keepAwake();
+  }
+  try { localStorage.setItem('alertsOn', alertsOn ? '1' : '0'); } catch(_){}
+  if (!alertsOn && wakeLock){ try { wakeLock.release(); } catch(_){} }
+  paintBell(); checkAlerts();
+};
+document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+
+function toast(kind, title, sub, onOpen, ttl){
+  const box = $('#toasts'), t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  const d = document.createElement('div'); d.textContent = title;
+  if (sub){ const sm = document.createElement('small'); sm.textContent = sub; d.appendChild(sm); }
+  t.appendChild(d);
+  if (onOpen){ const o = document.createElement('button'); o.textContent = 'افتح'; o.onclick = () => { t.remove(); onOpen(); }; t.appendChild(o); }
+  const x = document.createElement('button'); x.textContent = '✕'; x.onclick = () => t.remove(); t.appendChild(x);
+  box.prepend(t); while (box.children.length > 4) box.lastChild.remove();
+  setTimeout(() => t.remove(), ttl || 90000);
+}
+
+// نحفظ اللي نبهنا عليه عشان ما نكرر (الخلصان يتكرر كل 3 دقايق لين يطلع الزبون أو يتمدد)
+const alerted = {};
+let todayCache = { d: '', at: 0, rows: [] };
+async function todayRows(){
+  const t = dstr(new Date());
+  if (selDate === t) return bookings;
+  if (todayCache.d !== t || Date.now() - todayCache.at > 60000){
+    try { todayCache = { d: t, at: Date.now(), rows: (await q(sb.from('bookings').select('*').eq('date', t))).map(normB) }; } catch(_){}
+  }
+  return todayCache.rows;
+}
+function alertCafes(){
+  const mine = cafes.filter(c => canBook(c));
+  if (owner || !mine.length){ const c = cafes.find(x => x.id === selCafe); return owner ? (c ? [c] : []) : (c ? [c] : []); }
+  return mine;
+}
+async function checkAlerts(){
+  if (!alertsOn || !me || !cafesLoaded) return;
+  const rows = await todayRows(), m = nowMin(), now = Date.now();
+  alertCafes().forEach(c => {
+    rows.filter(b => b.cafeId === c.id && b.name && !b.done).forEach(b => {
+      const endM = bEnd(b, c) * 60, stM = bStart(b, c) * 60, left = endM - m;
+      const open = () => { if (!$('#dash').hidden) closeDash(); selDate = dstr(new Date()); selCafe = c.id; subscribeBookings(); setTimeout(() => openTent(c, Number(b.tent)), 400); };
+      const keyS = b.id + ':' + b.end + ':soon', keyO = b.id + ':' + b.end + ':over';
+      if (stM <= m && left > 0 && left <= SOON && !alerted[keyS]){
+        alerted[keyS] = now; play('soon');
+        toast('soon', `⏳ خيمة ${b.tent} باقي ${left} دقيقة`, `${c.name} · ${b.name} · يخلص ${hl(bEnd(b, c))}`, open);
+      }
+      if (left <= 0 && left > -180 && (!alerted[keyO] || now - alerted[keyO] > 3 * 60000)){
+        alerted[keyO] = now; play('over');
+        toast('over', `⏰ خيمة ${b.tent} خلص وقتها`, `${c.name} · ${b.name}${due(b) > 0 ? ' · باقي ' + money(due(b)) : ''} · سجّل طلع الزبون أو مدّد`, open);
+      }
+    });
+  });
+}
+setInterval(checkAlerts, 20000);
+paintBell();
+
 /* ---------- البيانات ---------- */
 async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order('sort'))).map(normC); cafesLoaded = true; render(); }
 async function loadPeople(){
@@ -1200,6 +1316,7 @@ function openAccount(){
 }
 $('#acct').onclick = openAccount;
 
+document.addEventListener('click', e => { if (alertsOn && !audioReady && e.target.id !== 'bell'){ player.src = SND.silent; player.play().then(() => { audioReady = true; paintBell(); keepAwake(); }).catch(() => {}); } }, true);
 let rsz = null; window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { if (!dragging) render(); }, 200); });
 setInterval(() => { if (!dragging && !editing && cafesLoaded) render(); }, 30000);
 boot();
