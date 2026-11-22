@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>احجز خيمتك · المقاهي الشعبية</title>
+<meta name="description" content="احجز خيمتك بالمقاهي الشعبية: الصليبخات، السالمية، الفروانية">
+<meta name="theme-color" content="#faf6ef">
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+:root{--bg:#faf6ef;--card:#fff;--ink:#2b2118;--mut:#8a7d70;--line:#eadfce;--acc:#8a5a2b;--acc2:#f3e6d3;
+--ok:#1e9e52;--okbg:#e3f6ea;--bad:#c63d3d;--badbg:#fdecec;--gry:#eef0f2}
+*{box-sizing:border-box}
+body{margin:0;font-family:Tajawal,system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit}
+.wrap{max-width:560px;margin:0 auto;padding:16px 14px 60px}
+.hero{text-align:center;padding:6px 0 10px}
+.hero img{width:96px;height:96px;object-fit:contain}
+.hero h1{margin:4px 0 2px;font-size:26px;font-weight:800}
+.hero p{margin:0;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;margin-top:12px}
+.card h2{margin:0 0 10px;font-size:17px;display:flex;align-items:center;gap:8px}
+.card h2 i{font-style:normal;background:var(--acc);color:#fff;border-radius:50%;width:24px;height:24px;display:grid;place-items:center;font-size:13px}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:9px 14px;cursor:pointer;font-weight:700;color:var(--ink);text-align:center}
+.chip small{display:block;font-weight:500;color:var(--mut);font-size:12px}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.chip.on small{color:#f3e6d3}
+.row{display:flex;gap:10px}.row>*{flex:1}
+label{display:block;font-size:14px;font-weight:700;margin:10px 0 4px}
+.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fffdf9;font-size:16px;color:var(--ink)}
+textarea.f{min-height:60px;resize:vertical}
+.tents{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:7px}
+.tn{border:2px solid #bfe6cd;background:var(--okbg);color:var(--ok);border-radius:12px;height:48px;font-weight:800;font-size:16px;cursor:pointer}
+.tn:disabled{background:var(--gry);border-color:var(--gry);color:#b3b8be;cursor:not-allowed;text-decoration:line-through}
+.tn.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--mut);margin:0 0 8px}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:5px;vertical-align:middle;background:var(--c)}
+.sum{background:var(--acc2);border-radius:14px;padding:12px;margin-top:12px;line-height:1.9}
+.sum b{color:var(--acc)}
+.btn{border:0;border-radius:14px;padding:14px;font-weight:800;cursor:pointer;background:var(--ok);color:#fff;width:100%;font-size:17px;margin-top:12px}
+.btn:disabled{opacity:.5}
+.btn.ghost{background:var(--acc2);color:var(--acc)}
+.err{color:var(--bad);font-size:14px;margin-top:8px;min-height:1em;font-weight:700}
+.note{color:var(--mut);font-size:13px;margin-top:8px}
+.warn{background:#fff3c4;border:1px solid #f0d27a;color:#6b4f00;border-radius:14px;padding:12px;margin-top:12px;line-height:1.8;font-size:14px}
+.agree{display:flex;align-items:center;gap:8px;margin:8px 0 0;font-size:15px;color:var(--ink)}
+.agree input{width:22px;height:22px;accent-color:var(--ok)}
+.done{text-align:center}
+.done .big{font-size:54px}
+.st{display:inline-block;border-radius:999px;padding:3px 10px;font-weight:800;font-size:13px}
+.st.pending{background:#fff3c4;color:#7a5a00}.st.confirmed{background:var(--okbg);color:var(--ok)}.st.gone{background:var(--badbg);color:var(--bad)}
+.mine{border-top:1px solid var(--line);padding:10px 0;font-size:14px;line-height:1.7}
+.mine:first-of-type{border-top:0}
+.status{text-align:center;color:var(--mut);padding:20px}
+footer{text-align:center;color:var(--mut);font-size:12px;margin-top:24px}
+footer a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <img src="../logo.png" alt="المقاهي الشعبية">
+    <h1>احجز خيمتك ⛺</h1>
+    <p>اختار المقهى والوقت والخيمة، واحجز على طول</p>
+  </div>
+
+  <div id="main"><div class="status">جاري التحميل…</div></div>
+  <div id="mineBox"></div>
+
+  <footer>الدفع بالمقهى · <a href="../">دخول الموظفين</a></footer>
+</div>
+
+<script>
+const SB_URL = 'https://xpavokpljazifycuuoko.supabase.co';
+const SB_KEY = 'sb_publishable_vPWhIUSBGg3nQLrwoW8B1Q_Q3MsS1Jj';
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: false } });
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const z = n => String(n).padStart(2, '0');
+const dstr = d => d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate());
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const shift = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return dstr(d); };
+const money = v => (Math.round(Number(v || 0) * 1000) / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' د.ك';
+function hl(h){ h = ((h % 24) + 24) % 24; if (h === 0) return '12 بالليل'; if (h === 12) return '12 الظهر'; return h < 12 ? h + ' الصبح' : (h - 12) + ' المسا'; }
+function hl30(h){ const t = hl(h - 1); return t.replace(/^(\d+)/, '$1:30'); } // آخر موعد للدفع: قبل البداية بنص ساعة
+function hrsL(n){ return n === 1 ? 'ساعة' : n === 2 ? 'ساعتين' : (n <= 10 ? n + ' ساعات' : n + ' ساعة'); }
+function dayName(s, today){
+  if (s === today) return 'اليوم'; if (s === shift(today, 1)) return 'بكرة';
+  return parse(s).toLocaleDateString('ar-KW-u-nu-latn', { weekday: 'long' });
+}
+
+let D = null, today = null, nowMin = 0;
+const S = { cafe: null, date: null, start: null, end: null, tent: null };
+
+async function load(date){
+  const { data, error } = await sb.rpc('public_availability', { p_date: date || dstr(new Date()) });
+  if (error) throw error;
+  D = data; today = data.today; nowMin = data.now_min;
+  return data;
+}
+function cafe(){ return D.cafes.find(c => c.id === S.cafe); }
+function busy(t, s, e){ return D.busy.some(b => b.c === S.cafe && b.t === t && b.s < e && s < b.e); }
+function firstHour(c){ const min = S.date === today ? Math.ceil((nowMin + 45) / 60) : c.open; // لازم يبقى ربع ساعة على الأقل قبل آخر موعد للدفع
+  return Math.max(c.open, Math.min(min, c.close - 1)); }
+
+function draw(){
+  const c = cafe();
+  const days = []; for (let i = 0; i < 14; i++) days.push(shift(today, i));
+  let ho = '', he = '';
+  const fh = firstHour(c);
+  for (let h = fh; h < c.close; h++) ho += `<option value="${h}" ${h === S.start ? 'selected' : ''}>${hl(h)}</option>`;
+  for (let h = S.start + 1; h <= Math.min(c.close, S.start + 8); h++) he += `<option value="${h}" ${h === S.end ? 'selected' : ''}>${hl(h)}</option>`;
+  let tg = '', free = 0;
+  for (let t = 1; t <= c.tents; t++){ const b = busy(t, S.start, S.end); if (!b) free++;
+    tg += `<button class="tn ${S.tent === t ? 'on' : ''}" data-t="${t}" ${b ? 'disabled' : ''}>${t}</button>`; }
+  const hrs = S.end - S.start, price = hrs * Number(c.price);
+  const closed = S.date === today && fh >= c.close - 0 ;
+  $('#main').innerHTML = `
+    <div class="card"><h2><i>1</i>المقهى</h2><div class="chips">${D.cafes.map(x => `<button class="chip ${x.id === S.cafe ? 'on' : ''}" data-c="${esc(x.id)}">${esc(x.name)}</button>`).join('')}</div></div>
+    <div class="card"><h2><i>2</i>اليوم</h2><div class="chips">${days.map(d => `<button class="chip ${d === S.date ? 'on' : ''}" data-d="${d}">${dayName(d, today)}<small>${d.slice(8)}/${d.slice(5,7)}</small></button>`).join('')}</div></div>
+    <div class="card"><h2><i>3</i>الوقت</h2>
+      ${closed ? '<div class="err">خلص دوام اليوم، اختار يوم ثاني.</div>' : `<div class="row"><div><label>من</label><select class="f" id="st">${ho}</select></div><div><label>إلى</label><select class="f" id="en">${he}</select></div></div>
+      <div class="note">الدوام من ${hl(c.open)} لين ${hl(c.close)} · ${money(c.price)} للساعة</div>`}</div>
+    ${closed ? '' : `<div class="card"><h2><i>4</i>اختار خيمة <small style="color:var(--mut);font-weight:500;font-size:13px">(${free} فاضية بهالوقت)</small></h2>
+      <div class="legend"><span style="--c:var(--okbg);">فاضية</span><span style="--c:var(--gry)">محجوزة</span></div>
+      <div class="tents">${tg}</div>
+      ${free ? '' : '<div class="err">ما فيه خيام فاضية بهالوقت، جرب وقت أو يوم ثاني.</div>'}</div>
+    <div class="card"><h2><i>5</i>بياناتك</h2>
+      <form id="bf">
+        <label>الاسم</label><input class="f" name="name" required maxlength="60" autocomplete="name">
+        <label>رقم الجوال</label><input class="f" name="phone" required type="tel" inputmode="numeric" dir="ltr" placeholder="9xxxxxxx" maxlength="15" autocomplete="tel">
+        <div class="row"><div><label>عدد الأشخاص</label><input class="f" name="people" type="number" min="1" max="99" inputmode="numeric"></div></div>
+        <label>ملاحظات (اختياري)</label><textarea class="f" name="note" maxlength="300"></textarea>
+        <div class="sum">${esc(c.name)} · ${dayName(S.date, today)} ${S.date.slice(8)}/${S.date.slice(5,7)}<br>
+          ${S.tent ? `خيمة <b>${S.tent}</b>` : '<span style="color:var(--bad)">اختار خيمة من فوق</span>'} · من ${hl(S.start)} لين ${hl(S.end)} (${hrsL(hrs)})<br>
+          المبلغ: <b>${money(price)}</b> · الدفع بالمقهى</div>
+        <div class="warn">⚠️ <b>تنبيه:</b> الدفع بالمقهى. لازم تدفع <b>قبل بداية الحجز بنص ساعة</b> (يعني قبل ${hl30(S.start)})، وإذا ما دفعت <b>ينلغي الحجز تلقائياً</b> والخيمة تنعطى لغيرك.
+          <label class="agree"><input type="checkbox" name="agree" required> فهمت وموافق</label></div>
+        <div class="err" id="ferr"></div>
+        <button class="btn" type="submit" ${S.tent ? '' : 'disabled'}>احجز الحين</button>
+      </form></div>`}`;
+  $('#main').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.cafe = b.dataset.c; resetTime(); draw(); });
+  $('#main').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { S.date = b.dataset.d; $('#main').style.opacity = .5; try { await load(S.date); } catch(_){} $('#main').style.opacity = 1; resetTime(); draw(); });
+  $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tent = Number(b.dataset.t); draw(); document.querySelector('#bf [name=name]').focus({ preventScroll: true }); });
+  const st = $('#st'), en = $('#en');
+  if (st) st.onchange = () => { S.start = Number(st.value); if (S.end <= S.start || S.end - S.start > 8) S.end = Math.min(cafe().close, S.start + 2); keepTent(); draw(); };
+  if (en) en.onchange = () => { S.end = Number(en.value); keepTent(); draw(); };
+  const f = $('#bf'); if (f) f.onsubmit = submit;
+}
+function keepTent(){ if (S.tent && busy(S.tent, S.start, S.end)) S.tent = null; }
+function resetTime(){ const c = cafe(); S.start = firstHour(c); S.end = Math.min(c.close, S.start + 2); S.tent = null; }
+
+const ERR = { bad_people: 'عدد الأشخاص غلط.', bad_phone: 'اكتب رقم جوال كويتي صحيح (8 أرقام).', bad_name: 'اكتب اسمك.', taken: 'هالخيمة انحجزت توها بهالوقت، اختار خيمة أو وقت ثاني.',
+  past: 'هالوقت فات أو قرب يفوت، اختار وقت ثاني.', too_many: 'عندك حجزين مفتوحين على هالرقم. ادفع أو انتظر لين يخلصون، أو كلّم المقهى.',
+  busy: 'فيه ضغط على الحجوزات الحين، جرب بعد شوي.', bad_time: 'الوقت مو ضمن الدوام.', bad_date: 'اختار يوم خلال الشهر الجاي.' };
+async function submit(e){
+  e.preventDefault();
+  const f = e.target, btn = f.querySelector('[type=submit]'); btn.disabled = true; $('#ferr').textContent = '';
+  try {
+    const { data, error } = await sb.rpc('public_request_booking', { p_cafe: S.cafe, p_date: S.date, p_tent: S.tent, p_start: S.start, p_end: S.end,
+      p_name: f.name.value, p_phone: f.phone.value, p_people: Number(f.people.value) || null, p_note: f.note.value || null });
+    if (error) throw error;
+    if (data.error){
+      $('#ferr').textContent = ERR[data.error] || 'صار خطأ، جرب مرة ثانية.';
+      if (data.error === 'taken'){ try { await load(S.date); } catch(_){} S.tent = null; setTimeout(draw, 1200); }
+      btn.disabled = false; return;
+    }
+    const mine = getMine(); mine.unshift({ id: data.id, phone: f.phone.value }); setMine(mine.slice(0, 10));
+    const c = cafe();
+    $('#main').innerHTML = `<div class="card done"><div class="big">✅</div><h2 style="justify-content:center">تم الحجز</h2>
+      <div class="sum" style="text-align:right">${esc(c.name)} · ${dayName(S.date, today)} ${S.date.slice(8)}/${S.date.slice(5,7)}<br>خيمة <b>${S.tent}</b> · من ${hl(S.start)} لين ${hl(S.end)}<br>المبلغ: <b>${money(data.price)}</b> · الدفع بالمقهى</div>
+      <div class="warn" style="text-align:right">⏰ لازم تدفع بالمقهى قبل <b>${hl30(S.start)}</b>، وإلا ينلغي الحجز تلقائياً.</div>
+      <div class="note">تقدر تشوف حجزك تحت بأي وقت من نفس الجوال.</div>
+      <button class="btn ghost" id="again">حجز ثاني</button></div>`;
+    $('#again').onclick = async () => { try { await load(S.date); } catch(_){} resetTime(); draw(); window.scrollTo(0, 0); };
+    window.scrollTo(0, 0); drawMine();
+  } catch(_){ $('#ferr').textContent = 'ما قدرنا نسوي الحجز، تأكد من النت وجرب مرة ثانية.'; btn.disabled = false; }
+}
+
+/* طلباتي: محفوظة بهالجهاز بس */
+function getMine(){ try { return JSON.parse(localStorage.getItem('myReq') || '[]'); } catch(_){ return []; } }
+function setMine(v){ try { localStorage.setItem('myReq', JSON.stringify(v)); } catch(_){} }
+async function drawMine(){
+  const mine = getMine(); if (!mine.length){ $('#mineBox').innerHTML = ''; return; }
+  const rows = await Promise.all(mine.map(m => sb.rpc('public_booking_status', { p_id: m.id, p_phone: m.phone }).then(r => ({ m, r: r.data || { status: 'gone' } })).catch(() => ({ m, r: null }))));
+  const keep = rows.filter(x => x.r && x.r.status !== 'gone' && x.r.date >= today);
+  const label = { pending: '⏳ قيد المراجعة', confirmed: '✅ محجوز', gone: '❌ ملغي' };
+  const html = rows.filter(x => x.r).map(({ r }) => r.status === 'gone'
+      ? `<div class="mine"><span class="st gone">${label.gone}</span> الحجز انلغى أو انتهى وقته.</div>`
+      : `<div class="mine"><span class="st ${r.status}">${label[r.status]}</span> ${esc(r.cafe)} · ${r.date.slice(8)}/${r.date.slice(5,7)} · خيمة ${r.tent} · ${hl(r.s)}–${hl(r.e)} · ${money(r.price)}</div>`).join('');
+  $('#mineBox').innerHTML = html ? `<div class="card"><h2>📋 حجوزاتي</h2>${html}<button class="btn ghost" id="refMine" style="margin-top:8px;padding:10px">تحديث</button></div>` : '';
+  const rb = $('#refMine'); if (rb) rb.onclick = drawMine;
+  setMine(keep.map(x => x.m).concat(rows.filter(x => !x.r).map(x => x.m)));
+}
+
+(async () => {
+  try {
+    await load();
+    if (!D.cafes.length){ $('#main').innerHTML = '<div class="status">الحجز مو متاح الحين.</div>'; return; }
+    S.cafe = D.cafes[0].id; S.date = today; resetTime();
+    const c = cafe(); if (firstHour(c) >= c.close - 0 && S.date === today){ S.date = shift(today, 1); await load(S.date); resetTime(); }
+    draw(); drawMine();
+  } catch(_){ $('#main').innerHTML = '<div class="status">ما قدرنا نحمّل الصفحة، تأكد من النت وحدّث.</div>'; }
+})();
+</script>
+</body>
+</html>

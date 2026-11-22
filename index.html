@@ -165,6 +165,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .flag{font-size:13px;font-weight:800;border-radius:8px;padding:4px 8px;margin-bottom:6px;display:inline-block}
 .flag.over{background:var(--overbg);color:var(--over);animation:pulse 1s infinite;border:1px solid transparent}
 .flag.soon{background:var(--soonbg);color:#a87a00}
+.flag.online{background:#e6efff;color:#2251b8;display:block}
 .flag.done{background:var(--freebg2);color:#5f666d}
 .map.crowd .pt small{font-size:10px;padding:0 3px}
 
@@ -302,7 +303,7 @@ async function q(p){ const { data, error } = await p; if (error) throw error; re
 function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.tent, start: r.start_h, end: r.end_h, name: r.name,
   phone: r.phone || '', people: r.people, note: r.note || '', rate: Number(r.rate), price: Number(r.price), done: r.done,
   by: r.created_by, at: r.created_at ? new Date(r.created_at).getTime() : 0,
-  paid: !!r.paid, payMethod: r.pay_method, paidAmount: Number(r.paid_amount || 0), paidBy: r.paid_by, paidAt: r.paid_at ? new Date(r.paid_at).getTime() : 0 }; }
+  paid: !!r.paid, source: r.source || 'staff', payMethod: r.pay_method, paidAmount: Number(r.paid_amount || 0), paidBy: r.paid_by, paidAt: r.paid_at ? new Date(r.paid_at).getTime() : 0 }; }
 const PM = { cash: '💵 كاش', knet: '💳 كي نت' };
 function due(b){ return Math.max(0, Math.round((Number(b.price) - (b.paid ? b.paidAmount : 0)) * 1000) / 1000); }
 function normC(r){ return { id: r.id, name: r.name, tents: r.tents, price: Number(r.price), open: r.open, close: r.close, layout: r.layout || {}, order: r.sort, soon: r.soon_min }; }
@@ -419,7 +420,7 @@ function render(){
   let html = '';
   for (let n = 1; n <= total; n++){
     const st = tentState(cafe, n, H), all = tentBookings(cafe, n);
-    const lines = all.map(x => `${hl(bStart(x,cafe))}–${hl(bEnd(x,cafe))} ${esc(x.name)}`).join('<br>');
+    const lines = all.map(x => `${x.source === 'online' ? '🌐 ' : ''}${hl(bStart(x,cafe))}–${hl(bEnd(x,cafe))} ${esc(x.name)}`).join('<br>');
     html += `<button class="tent ${st.s}" data-n="${n}"><div class="n">خيمة ${n}<span class="pill">${ST_LABEL[st.s]}</span></div>
       ${strip(cafe, n, H)}<div class="meta">${lines || (canBook(cafe) ? 'ما عليها حجز · اضغط للحجز' : 'ما عليها حجز')}</div></button>`;
   }
@@ -478,6 +479,10 @@ function openTent(cafe, n){
     if (!RO && left > 0) payBtns = `<div class="actions"><button class="btn green" data-pay="${esc(b.id)}" data-m="cash">💵 قبض ${money(left)} كاش</button><button class="btn green" data-pay="${esc(b.id)}" data-m="knet">💳 كي نت</button></div>`;
     if (owner && b.paid) payBtns += `<div class="actions"><button class="btn ghost" data-unpay="${esc(b.id)}">↩️ إلغاء الدفع (المالك)</button></div>`;
     const lockEdit = b.paid && !owner;
+    if (b.source === 'online'){
+      const dl = bStart(b, cafe) * 60 - 30;
+      flag = `<div class="flag online">🌐 حجز أونلاين من الزبون${!b.paid ? ` · ينلغي تلقائياً الساعة ${hl(Math.floor(dl / 60))}${dl % 60 ? ':30' : ''} إذا ما دفع` : ''}</div>` + flag;
+    }
     return `<div class="bk">${flag}<div class="h"><b>${esc(b.name)}</b><span class="t">${hl(bStart(b,cafe))} – ${hl(bEnd(b,cafe))}</span></div>
       <div class="m">${hrsL(hrs)} · <b style="color:var(--ink)">${money(b.price)}</b>
       ${b.phone ? `<br>📞 <a href="tel:${esc(b.phone)}" dir="ltr">${esc(b.phone)}</a>` : ''}
@@ -923,8 +928,8 @@ function logText(r){
   const a = r.after || {}, b = r.before || {}, x = r.after || r.before || {};
   const range = x.start_h != null ? `${hl(x.start_h)}–${hl(x.end_h)}` : '';
   switch (r.action){
-    case 'create': return { t: `سجّل حجز · ${money(a.price)}${a.paid ? ' · مدفوع' : ''}` };
-    case 'delete': return { t: `حذف الحجز${b.paid ? ' وهو مدفوع ' + money(b.paid_amount) : ''}`, bad: true };
+    case 'create': return a.source === 'online' && !r.actor ? { t: `🌐 حجز أونلاين من الزبون · ${money(a.price)}` } : { t: `سجّل حجز · ${money(a.price)}${a.paid ? ' · مدفوع' : ''}` };
+    case 'delete': return !r.actor ? { t: '🤖 انلغى تلقائياً لأنه ما دفع قبل الموعد بنص ساعة' } : { t: `حذف الحجز${b.paid ? ' وهو مدفوع ' + money(b.paid_amount) : ''}`, bad: true };
     case 'paid': return { t: `قبض ${money((a.paid_amount || 0) - (b.paid ? (b.paid_amount || 0) : 0))} · ${PM[a.pay_method] || ''}`, good: true };
     case 'unpaid': return { t: `ألغى الدفع (${money(b.paid_amount)})`, bad: true };
     case 'extend': return { t: `مدّد لين ${hl(a.end_h)} · السعر صار ${money(a.price)}` };
@@ -956,7 +961,7 @@ async function openLog(){
       const x = r.after || r.before || {}, c = cafes.find(k => k.id === r.cafe_id), L = logText(r);
       const tm = new Date(r.at).toLocaleTimeString('ar-KW-u-nu-latn', { hour: 'numeric', minute: '2-digit' });
       return `<div class="lg ${L.bad ? 'bad' : L.warn ? 'warn' : L.good ? 'good' : ''}">
-        <div class="lh"><b>${esc(pname(r.actor))}</b><small>${tm}</small></div>
+        <div class="lh"><b>${r.actor ? esc(pname(r.actor)) : (r.action === 'create' ? '🌐 الزبون' : '🤖 النظام')}</b><small>${tm}</small></div>
         <div>${L.t}</div>
         <small>${esc(c ? c.name : '')} · خيمة ${r.tent} · ${esc(x.name || '')} · ${x.start_h != null ? hl(x.start_h) + '–' + hl(x.end_h) : ''}</small></div>`;
     }).join('');
@@ -1065,7 +1070,7 @@ function dashBody({ from, to, B, logs }){
       const dlt = (a.paid ? +a.paid_amount || 0 : 0) - (bf.paid ? +bf.paid_amount || 0 : 0); E(r.actor)[a.pay_method === 'knet' ? 'knet' : 'cash'] += dlt; });
   else list.filter(b => b.paid).forEach(b => { E(b.paidBy)[b.payMethod === 'knet' ? 'knet' : 'cash'] += b.paidAmount; });
   const empRows = Object.entries(emp).sort((a, b) => (b[1].cash + b[1].knet) - (a[1].cash + a[1].knet) || b[1].n - a[1].n);
-  const empT = `<div class="card"><h3>👤 الموظفين</h3>${empRows.length ? `<table class="dt"><tr><th>الموظف</th><th>سجّل</th><th>💵 كاش</th><th>💳 كي نت</th></tr>${empRows.map(([id, e]) => `<tr><td>${esc(pname(id))}</td><td class="n">${e.n} حجز</td><td class="n">${money(e.cash)}</td><td class="n">${money(e.knet)}</td></tr>`).join('')}</table>` : '<div class="sub">ما في حجوزات بهالفترة.</div>'}</div>`;
+  const empT = `<div class="card"><h3>👤 الموظفين</h3>${empRows.length ? `<table class="dt"><tr><th>الموظف</th><th>سجّل</th><th>💵 كاش</th><th>💳 كي نت</th></tr>${empRows.map(([id, e]) => `<tr><td>${id === '?' ? '🌐 أونلاين' : esc(pname(id))}</td><td class="n">${e.n} حجز</td><td class="n">${money(e.cash)}</td><td class="n">${money(e.knet)}</td></tr>`).join('')}</table>` : '<div class="sub">ما في حجوزات بهالفترة.</div>'}</div>`;
 
   // أكثر الخيام حجزاً
   const tc = {}; list.forEach(b => { const k = b.cafeId + ':' + b.tent; tc[k] = (tc[k] || 0) + b.price; });
@@ -1074,7 +1079,7 @@ function dashBody({ from, to, B, logs }){
       return `<div class="hbar"><span class="l">${sel.length > 1 ? esc((c ? c.name : '').replace('مقهى ', '')) + ' ' : 'خيمة '}${t}</span><span class="t"><span style="width:${pct(v, tm)}%;background:var(--acc)"></span></span><span class="v">${money(v)}</span></div>`; }).join('')}</div>` : '';
 
   // تنبيهات الرقابة
-  const flags = logs.filter(r => ids.has(r.cafe_id) && (r.action === 'delete' || r.action === 'unpaid' ||
+  const flags = logs.filter(r => ids.has(r.cafe_id) && r.actor && (r.action === 'delete' || r.action === 'unpaid' ||
       (r.action === 'update' && r.before && r.after && Number(r.after.price) < Number(r.before.price)))).reverse();
   const flagT = `<div class="card"><h3>🚨 تنبيهات الرقابة</h3>${flags.length ? flags.slice(0, 30).map(r => {
       const x = r.before || r.after || {}, c = cafeOf(r.cafe_id), L = logText(r);
