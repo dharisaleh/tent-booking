@@ -38,6 +38,7 @@ textarea.f{min-height:60px;resize:vertical}
 .tn:disabled{background:var(--gry);border-color:var(--gry);color:#b3b8be;cursor:not-allowed;text-decoration:line-through}
 .tn.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .legend{display:flex;gap:14px;font-size:13px;color:var(--mut);margin:0 0 8px}
+.legend{flex-wrap:wrap}
 .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:5px;vertical-align:middle;background:var(--c)}
 .sum{background:var(--acc2);border-radius:14px;padding:12px;margin-top:12px;line-height:1.9}
 .sum b{color:var(--acc)}
@@ -56,6 +57,19 @@ textarea.f{min-height:60px;resize:vertical}
 .mine{border-top:1px solid var(--line);padding:10px 0;font-size:14px;line-height:1.7}
 .mine:first-of-type{border-top:0}
 .status{text-align:center;color:var(--mut);padding:20px}
+.vt{display:flex;background:var(--acc2);border-radius:12px;padding:3px;margin-bottom:10px;width:max-content}
+.vt button{border:0;background:transparent;color:var(--acc);padding:7px 12px;border-radius:9px;cursor:pointer;font-weight:700}
+.vt button.on{background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.map{position:relative;width:100%;border-radius:16px;border:2px solid var(--line);background-color:#f4e9d6;background-image:radial-gradient(#e3d2b5 1.2px,transparent 1.2px);background-size:22px 22px;overflow:hidden}
+.pt{position:absolute;transform:translate(-50%,-50%);border:0;background:transparent;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;width:var(--s)}
+.pt svg{width:calc(var(--s)*.72);height:calc(var(--s)*.56);filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
+.pt .roof{fill:currentColor}.pt .door{fill:rgba(255,255,255,.55)}
+.pt b{position:absolute;top:calc(var(--s)*.23);font-size:calc(var(--s)*.2 + 1px);color:#fff;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.pt.free{color:var(--ok)}.pt.busy{color:#c9cdd2;cursor:not-allowed}
+.pt.on{color:var(--acc);transform:translate(-50%,-50%) scale(1.3);z-index:3}
+.pt.on svg{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 3px 6px rgba(138,90,43,.6))}
+.mark{position:absolute;transform:translate(-50%,-50%);background:#5b4636;color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:4px 9px;white-space:nowrap}
+.tn.on{background:var(--acc);border-color:var(--acc)}
 footer{text-align:center;color:var(--mut);font-size:12px;margin-top:24px}
 footer a{color:var(--acc)}
 </style>
@@ -94,6 +108,37 @@ function dayName(s, today){
 }
 
 let D = null, today = null, nowMin = 0;
+let tView = (() => { try { return localStorage.getItem('tView') || 'map'; } catch(_){ return 'map'; } })();
+
+/* الكروكي: نفس ترتيب المقهى اللي محطوط ببرنامج الموظفين */
+let lastW = 360;
+function mapCols(total){ return total <= 4 ? 2 : total <= 9 ? 3 : Math.max(4, Math.min(8, Math.floor(lastW / 70))); }
+function defaultPos(n, total){
+  const cols = mapCols(total), rows = Math.ceil(total / cols), i = n - 1, c = i % cols, r = Math.floor(i / cols);
+  const r1 = v => Math.round(v * 10) / 10;
+  return { x: r1(100 - (4 + (c + 0.5) * 92 / cols)), y: r1(3 + (r + 0.5) * 94 / rows) };
+}
+function layoutOf(c){
+  const L = (c.layout && typeof c.layout === 'object') ? c.layout : {};
+  let tents = (L.tents && typeof L.tents === 'object') ? L.tents : {};
+  for (let n = 1; n <= c.tents; n++) if (!tents[n]){ tents = {}; break; }
+  return { tents, marks: Array.isArray(L.marks) ? L.marks : [] };
+}
+const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 Z"/><path class="door" d="M23 14 L30 34 H16 Z"/></svg>';
+function mapHtml(c){
+  const box = document.querySelector('#main .card') ; lastW = Math.max(280, Math.min((box ? box.clientWidth - 30 : 330), 820));
+  const W = lastW, total = c.tents, cols = mapCols(total), rows = Math.ceil(total / cols), L = layoutOf(c);
+  const S0 = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)));
+  const stripRows = Math.ceil((c.close - c.open) / 5);
+  const H = Math.round(Math.max(W * 1.1, rows * (S0 * 1.2 + stripRows * 12 + 14) + 30));
+  let h = `<div class="map" style="--s:${S0}px;height:${H}px">`;
+  L.marks.forEach(m => { h += `<div class="mark" style="left:${Number(m.x)||50}%;top:${Number(m.y)||50}%">${esc(m.t)}</div>`; });
+  for (let n = 1; n <= total; n++){
+    const p = L.tents[n] || defaultPos(n, total), b = busy(n, S.start, S.end);
+    h += `<button class="pt ${b ? 'busy' : 'free'} ${S.tent === n ? 'on' : ''}" data-t="${n}" ${b ? 'disabled' : ''} style="left:${p.x}%;top:${p.y}%">${tentSvg}<b>${n}</b></button>`;
+  }
+  return h + '</div>';
+}
 const S = { cafe: null, date: null, start: null, end: null, tent: null };
 
 async function load(date){
@@ -126,8 +171,9 @@ function draw(){
       ${closed ? '<div class="err">خلص دوام اليوم، اختار يوم ثاني.</div>' : `<div class="row"><div><label>من</label><select class="f" id="st">${ho}</select></div><div><label>إلى</label><select class="f" id="en">${he}</select></div></div>
       <div class="note">الدوام من ${hl(c.open)} لين ${hl(c.close)} · ${money(c.price)} للساعة</div>`}</div>
     ${closed ? '' : `<div class="card"><h2><i>4</i>اختار خيمة <small style="color:var(--mut);font-weight:500;font-size:13px">(${free} فاضية بهالوقت)</small></h2>
-      <div class="legend"><span style="--c:var(--okbg);">فاضية</span><span style="--c:var(--gry)">محجوزة</span></div>
-      <div class="tents">${tg}</div>
+      <div class="vt"><button class="${tView === 'map' ? 'on' : ''}" data-v="map">🗺️ الكروكي</button><button class="${tView === 'grid' ? 'on' : ''}" data-v="grid">🔢 الأرقام</button></div>
+      <div class="legend"><span style="--c:var(--ok);">فاضية</span><span style="--c:#c9cdd2">محجوزة</span><span style="--c:var(--acc)">اختيارك</span></div>
+      ${tView === 'map' ? mapHtml(c) + '<div class="note">اضغط على خيمة خضرا عشان تختارها</div>' : `<div class="tents">${tg}</div>`}
       ${free ? '' : '<div class="err">ما فيه خيام فاضية بهالوقت، جرب وقت أو يوم ثاني.</div>'}</div>
     <div class="card"><h2><i>5</i>بياناتك</h2>
       <form id="bf">
@@ -145,7 +191,8 @@ function draw(){
       </form></div>`}`;
   $('#main').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.cafe = b.dataset.c; resetTime(); draw(); });
   $('#main').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { S.date = b.dataset.d; $('#main').style.opacity = .5; try { await load(S.date); } catch(_){} $('#main').style.opacity = 1; resetTime(); draw(); });
-  $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tent = Number(b.dataset.t); draw(); document.querySelector('#bf [name=name]').focus({ preventScroll: true }); });
+  $('#main').querySelectorAll('[data-v]').forEach(b => b.onclick = () => { tView = b.dataset.v; try { localStorage.setItem('tView', tView); } catch(_){} draw(); });
+  $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tent = Number(b.dataset.t); const y = window.scrollY; draw(); window.scrollTo(0, y); });
   const st = $('#st'), en = $('#en');
   if (st) st.onchange = () => { S.start = Number(st.value); if (S.end <= S.start || S.end - S.start > 8) S.end = Math.min(cafe().close, S.start + 2); keepTent(); draw(); };
   if (en) en.onchange = () => { S.end = Number(en.value); keepTent(); draw(); };
