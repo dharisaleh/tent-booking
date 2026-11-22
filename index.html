@@ -481,14 +481,14 @@ function openTent(cafe, n){
     const lockEdit = b.paid && !owner;
     if (b.source === 'online'){
       const dl = bStart(b, cafe) * 60 - 30;
-      flag = `<div class="flag online">🌐 حجز أونلاين من الزبون${!b.paid ? ` · ينلغي تلقائياً الساعة ${hl(Math.floor(dl / 60))}${dl % 60 ? ':30' : ''} إذا ما دفع` : ''}</div>` + flag;
+      flag = `<div class="flag online">🌐 حجز أونلاين من الزبون${!b.paid ? ` · ينلغي تلقائياً الساعة ${hl(Math.floor(dl / 60)).replace(/^(\d+)/, dl % 60 ? '$1:30' : '$1')} إذا ما دفع` : ''}</div>` + flag;
     }
     return `<div class="bk">${flag}<div class="h"><b>${esc(b.name)}</b><span class="t">${hl(bStart(b,cafe))} – ${hl(bEnd(b,cafe))}</span></div>
       <div class="m">${hrsL(hrs)} · <b style="color:var(--ink)">${money(b.price)}</b>
       ${b.phone ? `<br>📞 <a href="tel:${esc(b.phone)}" dir="ltr">${esc(b.phone)}</a>` : ''}
       ${b.people ? `<br>👥 ${esc(b.people)} أشخاص` : ''}
       ${b.note ? `<br>📝 ${esc(b.note)}` : ''}
-      <br><span data-by="${esc(b.by || '')}" data-at="${esc(b.at || '')}">سجّله: …</span></div>
+      <br><span data-by="${esc(b.by || '')}" data-at="${esc(b.at || '')}" data-src="${esc(b.source)}">سجّله: …</span></div>
       ${pay}${payBtns}
       ${extra ? `<div class="actions">${extra}</div>` : ''}
       ${RO ? '' : lockEdit ? '<div class="m" style="margin-top:6px">🔒 الحجز مدفوع: التعديل والإلغاء للمالك بس.</div>' : `<div class="actions"><button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button><button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button></div>`}</div>`;
@@ -540,7 +540,7 @@ function openTent(cafe, n){
     } catch(err){ $('#ferr').textContent = err && err.code === '23P01' ? 'ما يصير تمديد، في حجز بعده على نفس الخيمة.' : errText(err); b.disabled = false; }
   });
   $('#sheet').querySelectorAll('[data-by]').forEach(el => {
-    const nm = pname(el.dataset.by);
+    const nm = !el.dataset.by && el.dataset.src === 'online' ? '🌐 الزبون من الموقع' : pname(el.dataset.by);
     const at = Number(el.dataset.at);
     el.textContent = 'سجّله: ' + nm + (at ? ' · ' + new Date(at).toLocaleString('ar-KW-u-nu-latn',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}) : '');
   });
