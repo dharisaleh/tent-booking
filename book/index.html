@@ -331,7 +331,8 @@ async function submit(e){
       if (data.error === 'taken'){ try { await load(S.date); } catch(_){} S.tent = null; setTimeout(draw, 1200); }
       btn.disabled = false; return;
     }
-    const mine = getMine(); mine.unshift({ id: data.id, phone: f.phone.value }); setMine(mine.slice(0, 10));
+    const ph = normPh(f.phone.value); // رقم جديد = نمسح حجوزات الرقم القديم من هالجهاز
+    const mine = getMine().filter(m => normPh(m.phone) === ph); mine.unshift({ id: data.id, phone: f.phone.value }); setMine(mine.slice(0, 10));
     const c = cafe();
     $('#main').innerHTML = `<div class="card done"><div class="big">✅</div><h2 style="justify-content:center">تم الحجز</h2>
       <div class="sum" style="text-align:right">${esc(c.name)} · ${dayName(S.date, today)} ${S.date.slice(8)}/${S.date.slice(5,7)}<br>خيمة <b>${S.tent}</b> · من ${hl(S.start)} لين ${hl(S.end)}<br>المبلغ: <b>${money(data.price)}</b> · الدفع بالمقهى</div>
@@ -346,15 +347,17 @@ async function submit(e){
 /* طلباتي: محفوظة بهالجهاز بس */
 function getMine(){ try { return JSON.parse(localStorage.getItem('myReq') || '[]'); } catch(_){ return []; } }
 function setMine(v){ try { localStorage.setItem('myReq', JSON.stringify(v)); } catch(_){} }
+const normPh = p => String(p || '').replace(/\D/g, '').slice(-8);
 async function drawMine(){
-  const mine = getMine(); if (!mine.length){ $('#mineBox').innerHTML = ''; return; }
+  let mine = getMine(); const last = mine[0] ? normPh(mine[0].phone) : '';
+  if (mine.some(m => normPh(m.phone) !== last)){ mine = mine.filter(m => normPh(m.phone) === last); setMine(mine); } // بس حجوزات آخر رقم if (!mine.length){ $('#mineBox').innerHTML = ''; return; }
   const rows = await Promise.all(mine.map(m => sb.rpc('public_booking_status', { p_id: m.id, p_phone: m.phone }).then(r => ({ m, r: r.data || { status: 'gone' } })).catch(() => ({ m, r: null }))));
   const keep = rows.filter(x => x.r && x.r.status !== 'gone' && x.r.date >= today);
   const label = { pending: '⏳ قيد المراجعة', confirmed: '✅ محجوز', gone: '❌ ملغي' };
   const html = rows.filter(x => x.r).map(({ r }) => r.status === 'gone'
       ? `<div class="mine"><span class="st gone">${label.gone}</span> الحجز انلغى أو انتهى وقته.</div>`
       : `<div class="mine"><span class="st ${r.status}">${label[r.status]}</span> ${esc(r.cafe)} · ${r.date.slice(8)}/${r.date.slice(5,7)} · خيمة ${r.tent} · ${hl(r.s)}–${hl(r.e)} · ${money(r.price)}</div>`).join('');
-  $('#mineBox').innerHTML = html ? `<div class="card"><h2>📋 حجوزاتي</h2>${html}<button class="btn ghost" id="refMine" style="margin-top:8px;padding:10px">تحديث</button></div>` : '';
+  $('#mineBox').innerHTML = html ? `<div class="card"><h2>📋 حجوزاتي <small style="color:var(--mut);font-weight:500;font-size:13px" dir="ltr">(${'••••' + last.slice(-4)})</small></h2>${html}<button class="btn ghost" id="refMine" style="margin-top:8px;padding:10px">تحديث</button></div>` : '';
   const rb = $('#refMine'); if (rb) rb.onclick = drawMine;
   setMine(keep.map(x => x.m).concat(rows.filter(x => !x.r).map(x => x.m)));
 }
