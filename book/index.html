@@ -78,6 +78,8 @@ textarea.f{min-height:60px;resize:vertical}
 .area.entry{background:#7a5332;border:2px solid #5b3c22}
 .area.entry span{background:transparent;color:#fff}
 .pt,.mark{z-index:1}
+.mapwrap{overflow:auto;max-height:75vh;border-radius:16px;-webkit-overflow-scrolling:touch}
+.mapwrap .map{max-width:none}
 footer{text-align:center;color:var(--mut);font-size:12px;margin-top:24px}
 footer a{color:var(--acc)}
 </style>
@@ -130,7 +132,7 @@ function layoutOf(c){
   const L = (c.layout && typeof c.layout === 'object') ? c.layout : {};
   let tents = (L.tents && typeof L.tents === 'object') ? L.tents : {};
   for (let n = 1; n <= c.tents; n++) if (!tents[n]){ tents = {}; break; }
-  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1 };
+  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1, wratio: Number(L.wratio) >= 1 ? Number(L.wratio) : 1 };
 }
 const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل' };
 function areasHtml(areas){
@@ -144,13 +146,13 @@ function mapHtml(c){
   const S0 = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)) * (L.tsize || 1));
   const stripRows = Math.ceil((c.close - c.open) / 5);
   const H = L.ratio ? Math.round(W * L.ratio) : Math.round(Math.max(W * 1.1, rows * (S0 * 1.2 + stripRows * 12 + 14) + 30));
-  let h = `<div class="map" style="--s:${S0}px;height:${H}px">` + areasHtml(L.areas);
+  let h = `<div class="mapwrap"><div class="map" style="--s:${S0}px;width:${Math.round(W * L.wratio)}px;height:${H}px">` + areasHtml(L.areas);
   L.marks.forEach(m => { h += `<div class="mark" style="left:${Number(m.x)||50}%;top:${Number(m.y)||50}%">${esc(m.t)}</div>`; });
   for (let n = 1; n <= total; n++){
     const p = L.tents[n] || defaultPos(n, total), b = busy(n, S.start, S.end);
     h += `<button class="pt ${b ? 'busy' : 'free'} ${S.tent === n ? 'on' : ''}" data-t="${n}" ${b ? 'disabled' : ''} style="left:${p.x}%;top:${p.y}%">${tentSvg}<b>${n}</b></button>`;
   }
-  return h + '</div>';
+  return h + '</div></div>' + (L.wratio > 1 ? '<div class="note">↔️ اسحب الكروكي يمين ويسار عشان تشوف باقي الخيام</div>' : '');
 }
 const S = { cafe: null, date: null, start: null, end: null, tent: null };
 
@@ -205,7 +207,7 @@ function draw(){
   $('#main').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.cafe = b.dataset.c; resetTime(); draw(); });
   $('#main').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { S.date = b.dataset.d; $('#main').style.opacity = .5; try { await load(S.date); } catch(_){} $('#main').style.opacity = 1; resetTime(); draw(); });
   $('#main').querySelectorAll('[data-v]').forEach(b => b.onclick = () => { tView = b.dataset.v; try { localStorage.setItem('tView', tView); } catch(_){} draw(); });
-  $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tent = Number(b.dataset.t); const y = window.scrollY; draw(); window.scrollTo(0, y); });
+  $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tent = Number(b.dataset.t); const y = window.scrollY, w = document.querySelector('.mapwrap'), sl = w ? w.scrollLeft : 0, st = w ? w.scrollTop : 0; draw(); window.scrollTo(0, y); const w2 = document.querySelector('.mapwrap'); if (w2){ w2.scrollLeft = sl; w2.scrollTop = st; } });
   const st = $('#st'), en = $('#en');
   if (st) st.onchange = () => { S.start = Number(st.value); if (S.end <= S.start || S.end - S.start > 8) S.end = Math.min(cafe().close, S.start + 2); keepTent(); draw(); };
   if (en) en.onchange = () => { S.end = Number(en.value); keepTent(); draw(); };

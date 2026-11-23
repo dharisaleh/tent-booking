@@ -195,6 +195,11 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 [dir=rtl] .area .rs{background:linear-gradient(225deg,transparent 50%,#5b3c22 50%);cursor:nesw-resize}
 .area.drag{opacity:.85}
 .pt,.mark{z-index:1}
+.mapwrap{overflow:auto;max-height:72vh;border-radius:20px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.mapwrap .map{max-width:none;margin:0}
+.map.edit{touch-action:pan-x pan-y}
+.zoombar{display:flex;gap:6px;align-items:center;justify-content:center;margin:0 0 8px;font-size:13px;font-weight:700;color:var(--mut)}
+.zoombar .mini{padding:5px 9px}
 .pt small{font-size:max(8px,calc(var(--s,64px)*.2))}
 .map.mode-draw .pt{pointer-events:none;opacity:.3}
 .map.mode-draw .area{z-index:2}
@@ -333,6 +338,7 @@ let cafes = [], bookings = [], selCafe = null, selDate = dstr(new Date()), selHo
 let cafesLoaded = false, unsubB = null, loadTimer = null;
 let view = (() => { try { return localStorage.getItem('tentView') || 'map'; } catch(_){ return 'map'; } })();
 let editing = false, draft = null, dragging = false, editMode = 'tents', lastRatio = 1.1;
+let mapZoom = (() => { try { return Number(localStorage.getItem('mapZoom')) || 1; } catch(_){ return 1; } })();
 
 function setStatus(t){ $('#status').textContent = t || ''; }
 function cfg(c){
@@ -695,7 +701,7 @@ function layoutOf(cafe){
   // لو بعض الخيام ما لها مكان محفوظ (انضافت من الإعدادات)، رتّب الكل ترتيب تلقائي عشان ما تتداخل
   const total = tentsOf(cafe);
   for (let n = 1; n <= total; n++) if (!tents[n]){ tents = {}; break; }
-  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1 };
+  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1, wratio: Number(L.wratio) >= 1 ? Number(L.wratio) : 1 };
 }
 
 /* مناطق الكروكي: بحر، ممر، مدخل */
@@ -712,13 +718,16 @@ function renderMap(cafe, total, H){
   const L = layoutOf(cafe), grid = $('#grid');
   grid.className = '';
   const W = Math.max(280, Math.min(grid.clientWidth || 360, 820)); lastW = W; const cols = mapCols(total), rows = Math.ceil(total / cols);
-  const S = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)) * (L.tsize || 1));           // حجم الخيمة (المالك يقدر يكبّره أو يصغّره)
+  const Z = mapZoom;                                                          // تكبير العرض (للشاشة بس)
+  const S = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)) * (L.tsize || 1) * Z);           // حجم الخيمة
   const C2 = cfg(cafe), stripRows = Math.ceil((C2.close - C2.open) / 5);
   const autoH = Math.round(Math.max(W * 1.1, rows * (S * 1.2 + stripRows * 12 + 14) + 30));
-  const mapH = L.ratio ? Math.round(W * L.ratio) : autoH;           // طول الكروكي (المالك يقدر يطوّله أو يقصّره)
-  lastRatio = Math.round(mapH / W * 100) / 100;
+  const baseH = L.ratio ? Math.round(W * L.ratio) : autoH;          // طول الكروكي (المالك يقدر يطوّله أو يقصّره)
+  lastRatio = Math.round(baseH / W * 100) / 100;
+  const mapW = Math.round(W * (L.wratio || 1) * Z), mapH = Math.round(baseH * Z);  // عرض اللوحة (المالك يقدر يعرّضها)
+  const old = $('#mapwrap'), keep = old ? { l: old.scrollLeft, t: old.scrollTop } : null;
   const crowded = total > 20;
-  let h = `<div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div><div class="map ${editing ? 'edit mode-' + editMode : ''} ${crowded ? 'crowd' : ''}" id="map" style="--s:${S}px;aspect-ratio:auto;height:${mapH}px;max-height:none">`;
+  let h = `<div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div><div class="zoombar"><button class="mini" id="zOut">🔍➖</button><span>${Math.round(Z * 100)}%</span><button class="mini" id="zIn">🔍➕</button><button class="mini" id="zFit">عرض الكل</button></div><div class="mapwrap" id="mapwrap"><div class="map ${editing ? 'edit mode-' + editMode : ''} ${crowded ? 'crowd' : ''}" id="map" style="--s:${S}px;aspect-ratio:auto;width:${mapW}px;height:${mapH}px;max-height:none">`;
   h += areasHtml(L.areas, editing);
   L.marks.forEach((m, i) => {
     h += `<div class="mark" data-drag data-m="${i}" style="left:${Number(m.x)||50}%;top:${Number(m.y)||50}%">${esc(m.t)}${editing ? `<i data-x="${i}">×</i>` : ''}</div>`;
@@ -727,9 +736,16 @@ function renderMap(cafe, total, H){
     const p = L.tents[n] || defaultPos(n, total), st = tentState(cafe, n, H), b = st.b;
     h += `<button class="pt ${st.s}" data-drag data-n="${n}" style="left:${p.x}%;top:${p.y}%">${tentSvg}<b>${n}</b>${b ? `<small>${esc(b.name)}</small>` : (crowded ? '' : '<small>فاضية</small>')}${strip(cafe, n, H)}</button>`;
   }
-  const live = isLive(cafe);
-  h += `</div>`;
+  h += `</div></div>`;
   grid.innerHTML = h;
+  const wrap = $('#mapwrap');
+  if (keep){ wrap.scrollLeft = keep.l; wrap.scrollTop = keep.t; }
+  const setZ = z => { const w = $('#mapwrap'), cx = (w.scrollLeft + w.clientWidth / 2) / w.scrollWidth, cy = (w.scrollTop + w.clientHeight / 2) / w.scrollHeight;
+    mapZoom = Math.max(0.3, Math.min(2.5, Math.round(z * 100) / 100)); try { localStorage.setItem('mapZoom', mapZoom); } catch(_){}
+    renderMap(cafe, total, H); const w2 = $('#mapwrap'); w2.scrollLeft = cx * w2.scrollWidth - w2.clientWidth / 2; w2.scrollTop = cy * w2.scrollHeight - w2.clientHeight / 2; };
+  $('#zIn').onclick = () => setZ(mapZoom + 0.2);
+  $('#zOut').onclick = () => setZ(mapZoom - 0.2);
+  $('#zFit').onclick = () => { const w = $('#mapwrap'); setZ(Math.min(w.clientWidth / (mapW / Z), w.clientHeight / (mapH / Z)) * 0.98); };
   bindTentClicks(cafe, '.pt');
   if (editing) bindDrag($('#map'));
 }
@@ -773,9 +789,11 @@ function bindDrag(map){
       };
       // لو سحبت لطرف الشاشة، الصفحة تنزل أو تطلع بروحها
       const edge = () => {
-        const H = window.innerHeight, zone = 90;
-        const dy = lastY < zone ? -Math.ceil((zone - lastY) / 6) : lastY > H - zone ? Math.ceil((lastY - (H - zone)) / 6) : 0;
-        if (dy){ window.scrollBy(0, dy); place(); }
+        const w = $('#mapwrap'), R = w.getBoundingClientRect(), zone = 50;
+        const sp = (p, a, b) => p < a + zone ? -Math.ceil((a + zone - p) / 5) : p > b - zone ? Math.ceil((p - (b - zone)) / 5) : 0;
+        const dx = sp(lastX, R.left, R.right), dy = sp(lastY, Math.max(R.top, 0), Math.min(R.bottom, window.innerHeight));
+        if (dx || dy){ const l = w.scrollLeft, t = w.scrollTop; w.scrollLeft += dx; w.scrollTop += dy;
+          if (dy && w.scrollTop === t) window.scrollBy(0, dy); place(); }
       };
       scroller = setInterval(edge, 30);
       el.onpointermove = ev => { lastX = ev.clientX; lastY = ev.clientY; place(); };
@@ -787,7 +805,7 @@ function startEdit(){
   const cafe = cafes.find(c => c.id === selCafe); if (!cafe) return;
   const L = layoutOf(cafe), total = tentsOf(cafe), tents = {};
   for (let n = 1; n <= total; n++){ const p = L.tents[n] || defaultPos(n, total); tents[n] = { x: p.x, y: p.y }; }
-  draft = { tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })) };
+  draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })) };
   editing = true; render();
 }
 function stopEdit(){ editing = false; draft = null; dragging = false; render(); }
@@ -799,6 +817,7 @@ function renderEditbar(){
     <div class="seg" style="margin-bottom:8px"><button data-em="tents" class="${editMode === 'tents' ? 'on' : ''}">⛺ تحريك الخيام</button><button data-em="draw" class="${editMode === 'draw' ? 'on' : ''}">🖌️ الرسم</button></div>
     <p id="emHelp"></p>
     <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">📏 طول الكروكي</b><button class="mini" id="mapShorter">➖ أقصر</button><button class="mini" id="mapTaller">➕ أطول</button></div>
+    <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">📐 عرض الكروكي</b><button class="mini" id="mapNarrow">➖ أضيق</button><button class="mini" id="mapWide">➕ أعرض</button></div>
     <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">⛺ حجم الخيام <span id="tsz"></span></b><button class="mini" id="tSmaller">➖ أصغر</button><button class="mini" id="tBigger">➕ أكبر</button></div>
     <div class="row"><input class="f" id="markT" placeholder="اسم المكان: المدخل، الكاشير، الحمامات…" maxlength="30"><button class="mini" id="addMark" style="flex:none">➕ أضف مكان</button></div>
     <div class="row" style="margin-top:8px;gap:6px"><button class="mini" data-add="sea">🌊 بحر</button><button class="mini" data-add="path">🚶 ممر</button><button class="mini" data-add="entry">🚪 مدخل</button></div>
@@ -823,6 +842,16 @@ function renderEditbar(){
   showTs();
   $('#tSmaller').onclick = () => { draft.tsize = Math.max(0.4, Math.round((draft.tsize - 0.1) * 10) / 10); showTs(); render(); };
   $('#tBigger').onclick = () => { draft.tsize = Math.min(1.6, Math.round((draft.tsize + 0.1) * 10) / 10); showTs(); render(); };
+  // تعريض اللوحة: المساحة الجديدة تنضاف على اليسار، والخيام تظل بأماكنها
+  const widenMap = nw => {
+    const f = draft.wratio / nw, r1 = v => Math.round(v * 10) / 10;
+    Object.values(draft.tents).forEach(p => p.x = r1(100 - (100 - p.x) * f));
+    draft.marks.forEach(m => m.x = r1(100 - (100 - m.x) * f));
+    draft.areas.forEach(a => { const r = 100 - a.x - a.w; a.w = r1(a.w * f); a.x = r1(Math.max(0, 100 - r * f - a.w)); });
+    draft.wratio = nw; render();
+  };
+  $('#mapWide').onclick = () => widenMap(Math.min(4, Math.round((draft.wratio + 0.5) * 10) / 10));
+  $('#mapNarrow').onclick = () => widenMap(Math.max(1, Math.round((draft.wratio - 0.5) * 10) / 10));
   $('#mapTaller').onclick = () => resizeMap(Math.min(6, Math.round((draft.ratio + 0.25) * 100) / 100));
   $('#mapShorter').onclick = () => resizeMap(Math.max(0.6, Math.round((draft.ratio - 0.25) * 100) / 100));
   $('#editbar').querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
@@ -849,7 +878,7 @@ function renderEditbar(){
     try {
 
       const tents = {}; for (let n = 1; n <= draft.count; n++) if (draft.tents[n]) tents[n] = draft.tents[n];
-      await q(sb.from('cafes').update({ tents: draft.count, layout: { tents, marks: draft.marks, areas: draft.areas, ratio: draft.ratio, tsize: draft.tsize } }).eq('id', selCafe));
+      await q(sb.from('cafes').update({ tents: draft.count, layout: { tents, marks: draft.marks, areas: draft.areas, ratio: draft.ratio, tsize: draft.tsize, wratio: draft.wratio } }).eq('id', selCafe));
       await loadCafes();
       stopEdit();
     } catch(err){ $('#eerr').textContent = errText(err); btn.disabled = false; }
