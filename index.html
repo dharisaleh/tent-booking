@@ -193,7 +193,10 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .area{position:absolute;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;overflow:hidden;user-select:none;-webkit-user-select:none}
 .area.tall span{writing-mode:vertical-rl;padding:8px 2px}
 .area span{transition:transform .2s;background:rgba(255,255,255,.75);border-radius:8px;padding:2px 8px;white-space:nowrap;color:#3b2f25}
-.area.sea{background:linear-gradient(180deg,#7cc4e8,#3d97c9);background-image:repeating-radial-gradient(circle at 0 100%,transparent 0 9px,rgba(255,255,255,.35) 10px 11px,transparent 12px 20px),linear-gradient(180deg,#8fd0ef,#3d97c9)}
+.area.sea{background-color:#2f8fc4;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='18' viewBox='0 0 56 18'%3E%3Cpath d='M0 9 Q7 3 14 9 T28 9 T42 9 T56 9' fill='none' stroke='white' stroke-opacity='.5' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"),radial-gradient(120% 70% at 50% 0%,rgba(255,255,255,.28),transparent 60%),linear-gradient(165deg,#74cdef 0%,#2f8fc4 55%,#17639a 100%);background-size:56px 18px,100% 100%,100% 100%;border:2px solid #ead9b3!important;box-shadow:inset 0 0 0 3px rgba(255,255,255,.6),inset 0 0 22px rgba(255,255,255,.35);animation:seaWave 5s linear infinite}
+@keyframes seaWave{to{background-position:56px 0,0 0,0 0}}
+@media (prefers-reduced-motion:reduce){.area.sea{animation:none}}
+.area.sea span{background:rgba(255,255,255,.9);color:#17639a;border-radius:999px;padding:2px 10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.12)}
 .area.path{background:repeating-linear-gradient(45deg,#e6dccb 0 10px,#dacdb6 10px 20px);border:1px dashed #b9a88d}
 .area.entry{background:#7a5332;border:2px solid #5b3c22}
 .area.entry span{background:transparent;color:#fff}
