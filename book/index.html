@@ -65,7 +65,12 @@ textarea.f{min-height:60px;resize:vertical}
 .pt svg{width:calc(var(--s)*.72);height:calc(var(--s)*.56);filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
 .pt .roof{fill:currentColor}.pt .door{fill:rgba(255,255,255,.55)}
 .pt b{position:absolute;top:calc(var(--s)*.23);font-size:calc(var(--s)*.2 + 1px);color:#fff;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.35)}
-.pt.free{color:var(--ok)}.pt.busy{color:#c9cdd2;cursor:not-allowed}
+.pt.free{color:var(--ok)}.pt.busy{color:#c9cdd2;cursor:pointer}
+.pt.peek{outline:3px solid var(--acc);outline-offset:2px;border-radius:10px}
+.tn.busy{background:#eceef1;color:#9aa1a9;border-color:#e1e4e8}
+.tn.peek{outline:3px solid var(--acc)}
+.tinfo{position:relative;margin-top:12px;background:#fff8e6;border:1.5px solid #f0c36d;border-radius:14px;padding:12px 14px 12px 40px;font-size:15px;line-height:1.6}
+.tinfo .x{position:absolute;top:8px;left:8px;border:0;background:transparent;font-size:16px;cursor:pointer;color:var(--mut)}
 .pt.on{color:var(--acc);transform:translate(-50%,-50%) scale(1.3);z-index:3}
 .pt.on svg{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 3px 6px rgba(138,90,43,.6))}
 .mark{position:absolute;transform:translate(-50%,-50%);background:#5b4636;color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:4px 9px;white-space:nowrap}
@@ -161,11 +166,27 @@ function mapHtml(c){
   L.marks.forEach(m => { h += `<div class="mark" style="left:${Number(m.x)||50}%;top:${Number(m.y)||50}%">${esc(m.t)}</div>`; });
   for (let n = 1; n <= total; n++){
     const p = L.tents[n] || defaultPos(n, total), b = busy(n, S.start, S.end);
-    h += `<button class="pt ${b ? 'busy' : 'free'} ${S.tent === n ? 'on' : ''}" data-t="${n}" ${b ? 'disabled' : ''} style="left:${p.x}%;top:${p.y}%">${tentSvg}<b>${n}</b></button>`;
+    h += `<button class="pt ${b ? 'busy' : 'free'} ${S.tent === n ? 'on' : ''} ${S.info === n ? 'peek' : ''}" data-t="${n}" style="left:${p.x}%;top:${p.y}%">${tentSvg}<b>${n}</b></button>`;
   }
   return h + '</div></div>' + (L.wratio > 1 ? '<div class="note">↔️ اسحب الكروكي يمين ويسار عشان تشوف باقي الخيام</div>' : '');
 }
-const S = { cafe: null, date: null, start: null, end: null, tent: null };
+const S = { cafe: null, date: null, start: null, end: null, tent: null, info: null };
+// أوقات الخيمة: المحجوز والفاضي خلال الدوام (من أول ساعة ممكنة)
+function tentTimes(t){
+  const c = cafe(), from = firstHour(c);
+  const bk = D.busy.filter(b => b.c === S.cafe && b.t === t).map(b => [b.s, b.e]).sort((a, b) => a[0] - b[0]);
+  const free = []; let cur = from;
+  bk.forEach(([a, b]) => { if (a > cur) free.push([cur, Math.min(a, c.close)]); cur = Math.max(cur, b); });
+  if (cur < c.close) free.push([cur, c.close]);
+  return { bk, free: free.filter(([a, b]) => b - a >= 1) };
+}
+function infoHtml(){
+  const t = S.info; if (!t) return '';
+  const { bk, free } = tentTimes(t);
+  return `<div class="tinfo"><b>⛺ خيمة ${t}</b> محجوزة ${bk.filter(([a, b]) => a < S.end && S.start < b).map(([a, b]) => `من ${hl(a)} لين ${hl(b)}`).join(' و ')}
+    ${free.length ? `<div style="margin-top:8px">✅ فاضية بهالأوقات، اضغط على وقت يناسبك:</div><div class="chips" style="margin-top:6px">${free.map(([a, b]) => `<button class="chip" data-fr="${a}-${b}">من ${hl(a)} لين ${hl(b)}</button>`).join('')}</div>` : '<div style="margin-top:8px">ما فيها وقت فاضي بهاليوم، اختار خيمة ثانية.</div>'}
+    <button class="x" data-ix>✕</button></div>`;
+}
 
 async function load(date){
   const { data, error } = await sb.rpc('public_availability', { p_date: date || dstr(new Date()) });
@@ -187,7 +208,7 @@ function draw(){
   for (let h = S.start + 1; h <= Math.min(c.close, S.start + 8); h++) he += `<option value="${h}" ${h === S.end ? 'selected' : ''}>${hl(h)}</option>`;
   let tg = '', free = 0;
   for (let t = 1; t <= c.tents; t++){ const b = busy(t, S.start, S.end); if (!b) free++;
-    tg += `<button class="tn ${S.tent === t ? 'on' : ''}" data-t="${t}" ${b ? 'disabled' : ''}>${t}</button>`; }
+    tg += `<button class="tn ${b ? 'busy' : ''} ${S.tent === t ? 'on' : ''} ${S.info === t ? 'peek' : ''}" data-t="${t}">${t}</button>`; }
   const hrs = S.end - S.start, price = hrs * Number(c.price);
   const closed = S.date === today && fh >= c.close - 0 ;
   $('#main').innerHTML = `
@@ -198,8 +219,10 @@ function draw(){
       <div class="note">الدوام من ${hl(c.open)} لين ${hl(c.close)} · ${money(c.price)} للساعة</div>`}</div>
     ${closed ? '' : `<div class="card"><h2><i>4</i>اختار خيمة <small style="color:var(--mut);font-weight:500;font-size:13px">(${free} فاضية بهالوقت)</small></h2>
       <div class="vt"><button class="${tView === 'map' ? 'on' : ''}" data-v="map">🗺️ الكروكي</button><button class="${tView === 'grid' ? 'on' : ''}" data-v="grid">🔢 الأرقام</button></div>
-      <div class="legend"><span style="--c:var(--ok);">فاضية</span><span style="--c:#c9cdd2">محجوزة</span><span style="--c:var(--acc)">اختيارك</span></div>
+      <div class="legend"><span style="--c:var(--ok);">فاضية</span><span style="--c:#c9cdd2">محجوزة بهالوقت</span><span style="--c:var(--acc)">اختيارك</span></div>
+      <div class="note" style="margin:-4px 0 8px">💡 الخيمة الرمادية محجوزة بالوقت اللي اخترته بس، اضغط عليها تشوف أوقاتها الفاضية</div>
       ${tView === 'map' ? mapHtml(c) + '<div class="note">اضغط على خيمة خضرا عشان تختارها</div>' : `<div class="tents">${tg}</div>`}
+      ${infoHtml()}
       ${free ? '' : '<div class="err">ما فيه خيام فاضية بهالوقت، جرب وقت أو يوم ثاني.</div>'}</div>
     <div class="card"><h2><i>5</i>بياناتك</h2>
       <form id="bf">
@@ -218,14 +241,19 @@ function draw(){
   $('#main').querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.cafe = b.dataset.c; resetTime(); draw(); });
   $('#main').querySelectorAll('[data-d]').forEach(b => b.onclick = async () => { S.date = b.dataset.d; $('#main').style.opacity = .5; try { await load(S.date); } catch(_){} $('#main').style.opacity = 1; resetTime(); draw(); });
   $('#main').querySelectorAll('[data-v]').forEach(b => b.onclick = () => { tView = b.dataset.v; try { localStorage.setItem('tView', tView); } catch(_){} draw(); });
-  $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tent = Number(b.dataset.t); const y = window.scrollY, w = document.querySelector('.mapwrap'), sl = w ? w.scrollLeft : 0, st = w ? w.scrollTop : 0; draw(); window.scrollTo(0, y); const w2 = document.querySelector('.mapwrap'); if (w2){ w2.scrollLeft = sl; w2.scrollTop = st; } });
+  $('#main').querySelectorAll('[data-fr]').forEach(b => b.onclick = () => { const [a, e] = b.dataset.fr.split('-').map(Number);
+    const want = Math.max(1, (S.end - S.start) || 2); S.tent = S.info; S.start = a; S.end = Math.min(e, a + want); S.info = null; draw();
+    const f = $('#bf'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+  $('#main').querySelectorAll('[data-ix]').forEach(b => b.onclick = () => { S.info = null; draw(); });
+  $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { const tn = Number(b.dataset.t);
+    if (busy(tn, S.start, S.end)){ S.info = S.info === tn ? null : tn; } else { S.tent = tn; S.info = null; } const y = window.scrollY, w = document.querySelector('.mapwrap'), sl = w ? w.scrollLeft : 0, st = w ? w.scrollTop : 0; draw(); window.scrollTo(0, y); const w2 = document.querySelector('.mapwrap'); if (w2){ w2.scrollLeft = sl; w2.scrollTop = st; } });
   const st = $('#st'), en = $('#en');
   if (st) st.onchange = () => { S.start = Number(st.value); if (S.end <= S.start || S.end - S.start > 8) S.end = Math.min(cafe().close, S.start + 2); keepTent(); draw(); };
   if (en) en.onchange = () => { S.end = Number(en.value); keepTent(); draw(); };
   const f = $('#bf'); if (f) f.onsubmit = submit;
 }
-function keepTent(){ if (S.tent && busy(S.tent, S.start, S.end)) S.tent = null; }
-function resetTime(){ const c = cafe(); S.start = firstHour(c); S.end = Math.min(c.close, S.start + 2); S.tent = null; }
+function keepTent(){ if (S.tent && busy(S.tent, S.start, S.end)) S.tent = null; if (S.info && !busy(S.info, S.start, S.end)) S.info = null; }
+function resetTime(){ const c = cafe(); S.start = firstHour(c); S.end = Math.min(c.close, S.start + 2); S.tent = null; S.info = null; }
 
 const ERR = { bad_people: 'عدد الأشخاص غلط.', bad_phone: 'اكتب رقم جوال كويتي صحيح (8 أرقام).', bad_name: 'اكتب اسمك.', taken: 'هالخيمة انحجزت توها بهالوقت، اختار خيمة أو وقت ثاني.',
   past: 'هالوقت فات أو قرب يفوت، اختار وقت ثاني.', too_many: 'عندك حجزين مفتوحين على هالرقم. ادفع أو انتظر لين يخلصون، أو كلّم المقهى.',
