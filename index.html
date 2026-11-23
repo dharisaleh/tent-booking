@@ -218,6 +218,9 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .lineup small{display:block;color:var(--mut);font-size:12px;margin-top:2px}
 .lineup input{width:64px;padding:6px;text-align:center}
 .map .pt.linked{outline:2.5px solid var(--lc)!important;outline-offset:1px;border-radius:10px;background:color-mix(in srgb,var(--lc) 10%,transparent)!important}
+.gchip{display:inline-flex;align-items:center;gap:4px}
+.gchip small{color:var(--mut);font-size:11px}
+.collist span button.gs{background:#fff;color:inherit;border:1px solid #ddd;border-radius:6px;padding:1px 6px;font-size:13px}
 .collist span button{border:0;background:transparent;color:#c00;font-weight:800;padding:0 2px;cursor:pointer}
 .collist span{border:2px solid transparent}
 .collist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -826,9 +829,28 @@ function markLinked(){
     el.classList.toggle('linked', gi >= 0); if (gi >= 0) el.style.setProperty('--lc', LINK_COLORS[gi % LINK_COLORS.length]); });
 }
 const LINK_COLORS = ['#e0457b', '#2b7de9', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
+// ↔️ يوسّع أو يضيّق المسافة بين الخيام المربوطة، وأول خيمة تبقى بمكانها
+function spreadGroup(g, dir){
+  if (!g || g.length < 2) return;
+  const map = $('#map'); if (!map) return;
+  const a = draft.tents[g[0]]; if (!a) return;
+  const W = map.offsetWidth, H = map.offsetHeight, step = 8; // كل ضغطة 8 بكسل بين كل خيمتين
+  // المسافة الحالية بين الجيران، نزيد عليها أو ننقص بنفس النسبة
+  let d = 0; for (let i = 1; i < g.length; i++){ const p = draft.tents[g[i]], q = draft.tents[g[i - 1]]; if (p && q) d += Math.hypot((p.x - q.x) / 100 * W, (p.y - q.y) / 100 * H); }
+  d /= g.length - 1; if (d < 1) return;
+  let k = Math.max(0.3, (d + dir * step) / d);
+  // ما نطلع برا الكروكي
+  g.forEach(n => { const p = draft.tents[n]; if (!p) return; const dx = p.x - a.x, dy = p.y - a.y;
+    if (dx > 0) k = Math.min(k, (99 - a.x) / dx); if (dx < 0) k = Math.min(k, (a.x - 1) / -dx);
+    if (dy > 0) k = Math.min(k, (99 - a.y) / dy); if (dy < 0) k = Math.min(k, (a.y - 1) / -dy); });
+  if (dir > 0 && k <= 1.001){ toast('over', 'ما فيه مكان أكثر', 'حرّك المجموعة أو كبّر الكروكي 📐', null, 3500); return; }
+  g.forEach(n => { const p = draft.tents[n]; if (!p) return; draft.tents[n] = { x: Math.round((a.x + (p.x - a.x) * k) * 10) / 10, y: Math.round((a.y + (p.y - a.y) * k) * 10) / 10 }; });
+  applyDraftStyles(map);
+}
 function drawGroups(){
   const box = $('#grpList'); if (!box) return;
-  box.innerHTML = draft.groups.length ? draft.groups.map((g, i) => `<span style="border-color:${LINK_COLORS[i % LINK_COLORS.length]}">🔗 ${g[0]} – ${g[g.length - 1]} <button data-ug="${i}" title="فك الربط">✕</button></span>`).join('') : '<small>ما فيه خيام مربوطة</small>';
+  box.innerHTML = draft.groups.length ? draft.groups.map((g, i) => `<span class="gchip" style="border-color:${LINK_COLORS[i % LINK_COLORS.length]}">🔗 ${g[0]} – ${g[g.length - 1]} <small>المسافة</small><button class="gs" data-gs="${i}" data-k="-1">➖</button><button class="gs" data-gs="${i}" data-k="1">➕</button><button data-ug="${i}" title="فك الربط">✕</button></span>`).join('') : '<small>ما فيه خيام مربوطة</small>';
+  box.querySelectorAll('[data-gs]').forEach(b => b.onclick = () => spreadGroup(draft.groups[Number(b.dataset.gs)], Number(b.dataset.k)));
   box.querySelectorAll('[data-ug]').forEach(b => b.onclick = () => { draft.groups.splice(Number(b.dataset.ug), 1); markLinked(); drawGroups(); });
 }
 // 📋 رتّب بالأعمدة: كل عمود تكتب أرقامه، ينحط من اليمين لليسار، والباقي ينرص بعده
