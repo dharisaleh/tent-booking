@@ -130,7 +130,7 @@ function layoutOf(c){
   const L = (c.layout && typeof c.layout === 'object') ? c.layout : {};
   let tents = (L.tents && typeof L.tents === 'object') ? L.tents : {};
   for (let n = 1; n <= c.tents; n++) if (!tents[n]){ tents = {}; break; }
-  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0 };
+  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1 };
 }
 const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل' };
 function areasHtml(areas){
@@ -141,7 +141,7 @@ const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 
 function mapHtml(c){
   const box = document.querySelector('#main .card') ; lastW = Math.max(280, Math.min((box ? box.clientWidth - 30 : 330), 820));
   const W = lastW, total = c.tents, cols = mapCols(total), rows = Math.ceil(total / cols), L = layoutOf(c);
-  const S0 = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)));
+  const S0 = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)) * (L.tsize || 1));
   const stripRows = Math.ceil((c.close - c.open) / 5);
   const H = L.ratio ? Math.round(W * L.ratio) : Math.round(Math.max(W * 1.1, rows * (S0 * 1.2 + stripRows * 12 + 14) + 30));
   let h = `<div class="map" style="--s:${S0}px;height:${H}px">` + areasHtml(L.areas);
