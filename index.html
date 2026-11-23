@@ -184,7 +184,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 [hidden]{display:none!important}
 .area{position:absolute;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;overflow:hidden;user-select:none;-webkit-user-select:none}
 .area.tall span{writing-mode:vertical-rl;padding:8px 2px}
-.area span{background:rgba(255,255,255,.75);border-radius:8px;padding:2px 8px;white-space:nowrap;color:#3b2f25}
+.area span{transition:transform .2s;background:rgba(255,255,255,.75);border-radius:8px;padding:2px 8px;white-space:nowrap;color:#3b2f25}
 .area.sea{background:linear-gradient(180deg,#7cc4e8,#3d97c9);background-image:repeating-radial-gradient(circle at 0 100%,transparent 0 9px,rgba(255,255,255,.35) 10px 11px,transparent 12px 20px),linear-gradient(180deg,#8fd0ef,#3d97c9)}
 .area.path{background:repeating-linear-gradient(45deg,#e6dccb 0 10px,#dacdb6 10px 20px);border:1px dashed #b9a88d}
 .area.entry{background:#7a5332;border:2px solid #5b3c22}
@@ -193,6 +193,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .area.cashier span{background:#fff8ec}
 .map.edit .area{cursor:move;touch-action:none;outline:2px dashed rgba(138,90,43,.55);outline-offset:-2px}
 .area i{position:absolute;top:3px;inset-inline-start:3px;font-style:normal;background:var(--busy);color:#fff;border-radius:50%;width:20px;height:20px;display:grid;place-items:center;cursor:pointer;font-size:13px;z-index:2}
+.area i.rot{inset-inline-start:auto;inset-inline-end:3px;background:#2b7de9;font-size:15px;font-weight:800}
 .area .rs{position:absolute;bottom:0;inset-inline-end:0;width:22px;height:22px;background:linear-gradient(135deg,transparent 50%,#5b3c22 50%);cursor:nwse-resize;touch-action:none}
 [dir=rtl] .area .rs{background:linear-gradient(225deg,transparent 50%,#5b3c22 50%);cursor:nesw-resize}
 .area.drag{opacity:.85}
@@ -735,7 +736,7 @@ const AREA = { sea: { t: '🌊 بحر', w: 100, h: 12, x: 0, y: 0 }, path: { t: 
 const clampA = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)) * 10) / 10;
 function areasHtml(areas, edit){
   return (areas || []).map((a, i) => { const k = AREA[a.k] ? a.k : 'path';
-    return `<div class="area ${k} ${(+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" data-a="${i}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%"><span>${AREA[k].t}</span>${edit ? `<i data-ax="${i}">×</i><b class="rs" data-rs="${i}"></b>` : ''}</div>`; }).join('');
+    return `<div class="area ${k} ${a.r == null && (+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" data-a="${i}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%"><span${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}>${AREA[k].t}</span>${edit ? `<i data-ax="${i}">×</i><i class="rot" data-rot="${i}" title="تدوير">⟳</i><b class="rs" data-rs="${i}"></b>` : ''}</div>`; }).join('');
 }
 const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 Z"/><path class="door" d="M23 14 L30 34 H16 Z"/></svg>';
 
@@ -948,6 +949,15 @@ function bindCanvasResize(cafe, W, Z){
   };
 }
 function bindDrag(map){
+  // ⟳ تدوير: يقلب الشكل من عرضي لطولي وبالعكس حول نفس النص
+  map.querySelectorAll('[data-rot]').forEach(x => x.onpointerdown = e => { e.stopPropagation(); e.preventDefault();
+    const a = draft.areas[Number(x.dataset.rot)]; if (!a) return;
+    const W = map.offsetWidth, H = map.offsetHeight, cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+    const nw = Math.min(100, a.h / 100 * H / W * 100), nh = Math.min(100, a.w / 100 * W / H * 100);
+    const r1 = v => Math.round(v * 10) / 10;
+    a.r = ((+a.r || 0) + 90) % 360;
+    a.w = r1(nw); a.h = r1(nh); a.x = r1(Math.max(0, Math.min(100 - nw, cx - nw / 2))); a.y = r1(Math.max(0, Math.min(100 - nh, cy - nh / 2)));
+    render(); });
   map.querySelectorAll('[data-ax]').forEach(x => x.onpointerdown = e => { e.stopPropagation(); e.preventDefault(); draft.areas.splice(Number(x.dataset.ax), 1); render(); });
   map.querySelectorAll('.area').forEach(el => {
     el.onpointerdown = e => {
@@ -1040,7 +1050,7 @@ function startEdit(){
   const cafe = cafes.find(c => c.id === selCafe); if (!cafe) return;
   const L = layoutOf(cafe), total = tentsOf(cafe), tents = {};
   for (let n = 1; n <= total; n++){ const p = L.tents[n] || defaultPos(n, total); tents[n] = { x: p.x, y: p.y }; }
-  draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })), groups: (L.groups || []).map(g => g.slice()) };
+  draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10, ...(a.r != null ? { r: +a.r || 0 } : {}) })), groups: (L.groups || []).map(g => g.slice()) };
   editing = true; hist = []; render(); showUndo(true);
 }
 function stopEdit(){ cols = []; hist = []; showUndo(false); if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
@@ -1052,7 +1062,7 @@ function renderEditbar(){
   eb.addEventListener('click', e => { const b = e.target.closest('button'); if (b && !['saveMap', 'cancelMap'].includes(b.id)) setTimeout(updUndo, 0); });
   eb.addEventListener('pointerdown', e => { const b = e.target.closest('button'); if (b && !['saveMap', 'cancelMap'].includes(b.id)) snap(); }, true); }
   eb.innerHTML = `<div class="editbar">
-    <div class="seg" style="margin-bottom:8px"><button data-em="tents" class="${editMode === 'tents' ? 'on' : ''}">⛺ تحريك الخيام</button><button data-em="draw" class="${editMode === 'draw' ? 'on' : ''}">🖌️ الرسم</button></div>
+    <div class="seg" style="margin-bottom:8px"><button data-em="tents" class="${editMode === 'tents' ? 'on' : ''}">⛺ تحريك الخيام</button><button data-em="draw" class="${editMode === 'draw' ? 'on' : ''}">🖌️ تحريك الباب والكاشير والبحر</button></div>
     <label class="mag"><input type="checkbox" id="magnet" ${magnet ? 'checked' : ''}> 🧲 مغناطيس <small>(يلصق الخيام على نفس الصف والعمود، ويرتّب الرسم على الشبكة)</small></label>
     <div class="lineup">
       <b>📋 رتّب بالأعمدة</b>
@@ -1096,7 +1106,7 @@ function renderEditbar(){
     <div class="err" id="eerr"></div>
     <div class="actions"><button class="btn green" id="saveMap">💾 حفظ</button><button class="btn ghost" id="autoMap">🔄 تلقائي</button><button class="btn ghost" id="cancelMap">إلغاء</button></div></div>`;
   const setEM = m => { editMode = m; $('#editbar').querySelectorAll('[data-em]').forEach(b => b.classList.toggle('on', b.dataset.em === m));
-    $('#emHelp').textContent = m === 'tents' ? 'اسحب الخيام لمكانها الصحيح. البحر والممرات ثابتة بهالوضع.' : 'اسحب البحر والممرات والأبواب والأماكن لمكانها، وكبّرها من المثلث ◢ اللي بالزاوية. الخيام ثابتة بهالوضع.';
+    $('#emHelp').textContent = m === 'tents' ? 'اسحب الخيام لمكانها. البحر والممر والباب والكاشير ثابتين بهالوضع، ولتحريكهم اضغط «🖌️ تحريك الباب والكاشير والبحر».' : 'اسحب البحر والممرات والأبواب والأماكن لمكانها، وكبّرها من المثلث ◢ اللي بالزاوية، ودوّرها من زر ⟳ الأزرق. الخيام ثابتة بهالوضع.';
     const mp = $('#map'); if (mp){ mp.classList.toggle('mode-tents', m === 'tents'); mp.classList.toggle('mode-draw', m === 'draw'); } };
   $('#editbar').querySelectorAll('[data-em]').forEach(b => b.onclick = () => setEM(b.dataset.em));
   setEM(editMode);

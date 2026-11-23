@@ -139,7 +139,7 @@ function layoutOf(c){
 const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل', cashier: '💵 كاشير' };
 function areasHtml(areas){
   return (areas || []).map(a => { const k = AREA_T[a.k] ? a.k : 'path';
-    return `<div class="area ${k} ${(+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%"><span>${AREA_T[k]}</span></div>`; }).join('');
+    return `<div class="area ${k} ${a.r == null && (+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%"><span${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}>${AREA_T[k]}</span></div>`; }).join('');
 }
 const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 Z"/><path class="door" d="M23 14 L30 34 H16 Z"/></svg>';
 function mapHtml(c){
