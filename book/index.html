@@ -70,6 +70,14 @@ textarea.f{min-height:60px;resize:vertical}
 .pt.on svg{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 3px 6px rgba(138,90,43,.6))}
 .mark{position:absolute;transform:translate(-50%,-50%);background:#5b4636;color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:4px 9px;white-space:nowrap}
 .tn.on{background:var(--acc);border-color:var(--acc)}
+.area{position:absolute;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;overflow:hidden}
+.area.tall span{writing-mode:vertical-rl;padding:8px 2px}
+.area span{background:rgba(255,255,255,.75);border-radius:8px;padding:2px 8px;white-space:nowrap;color:#3b2f25}
+.area.sea{background-image:repeating-radial-gradient(circle at 0 100%,transparent 0 9px,rgba(255,255,255,.35) 10px 11px,transparent 12px 20px),linear-gradient(180deg,#8fd0ef,#3d97c9)}
+.area.path{background:repeating-linear-gradient(45deg,#e6dccb 0 10px,#dacdb6 10px 20px);border:1px dashed #b9a88d}
+.area.entry{background:#7a5332;border:2px solid #5b3c22}
+.area.entry span{background:transparent;color:#fff}
+.pt,.mark{z-index:1}
 footer{text-align:center;color:var(--mut);font-size:12px;margin-top:24px}
 footer a{color:var(--acc)}
 </style>
@@ -122,7 +130,12 @@ function layoutOf(c){
   const L = (c.layout && typeof c.layout === 'object') ? c.layout : {};
   let tents = (L.tents && typeof L.tents === 'object') ? L.tents : {};
   for (let n = 1; n <= c.tents; n++) if (!tents[n]){ tents = {}; break; }
-  return { tents, marks: Array.isArray(L.marks) ? L.marks : [] };
+  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [] };
+}
+const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل' };
+function areasHtml(areas){
+  return (areas || []).map(a => { const k = AREA_T[a.k] ? a.k : 'path';
+    return `<div class="area ${k} ${(+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%"><span>${AREA_T[k]}</span></div>`; }).join('');
 }
 const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 Z"/><path class="door" d="M23 14 L30 34 H16 Z"/></svg>';
 function mapHtml(c){
@@ -131,7 +144,7 @@ function mapHtml(c){
   const S0 = Math.round(Math.max(40, Math.min(56, W / cols * 0.58)));
   const stripRows = Math.ceil((c.close - c.open) / 5);
   const H = Math.round(Math.max(W * 1.1, rows * (S0 * 1.2 + stripRows * 12 + 14) + 30));
-  let h = `<div class="map" style="--s:${S0}px;height:${H}px">`;
+  let h = `<div class="map" style="--s:${S0}px;height:${H}px">` + areasHtml(L.areas);
   L.marks.forEach(m => { h += `<div class="mark" style="left:${Number(m.x)||50}%;top:${Number(m.y)||50}%">${esc(m.t)}</div>`; });
   for (let n = 1; n <= total; n++){
     const p = L.tents[n] || defaultPos(n, total), b = busy(n, S.start, S.end);
