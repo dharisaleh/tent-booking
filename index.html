@@ -816,22 +816,43 @@ function addColumn(){
   const next = Math.max(...fresh) + 1;
   if (next <= draft.count){ $('#colFrom').value = next; $('#colTo').value = Math.min(draft.count, next + fresh.length - 1); }
   drawCols();
+  const cgShow = () => $('#cgTxt').textContent = GAP_TXT[colGap]; cgShow();
+  $('#cgLess').onclick = () => { colGap = Math.max(0, colGap - 1); cgShow(); };
+  $('#cgMore').onclick = () => { colGap = Math.min(4, colGap + 1); cgShow(); };
   toast('soon', `✅ عمود ${cols.length}: ${fresh.length} خيمة`, 'لا تنسى تضغط 💾 حفظ لما تخلص', null, 3000);
 }
+let colGap = 2; const COL_GAPS = [4, 12, 24, 40, 60], GAP_TXT = ['ملاصقة', 'قريبة', 'عادية', 'واسعة', 'واسعة جداً'];
 function layoutCols(map){
   const pt = map.querySelector('.pt[data-n]'); const W = map.offsetWidth, H = map.offsetHeight;
-  const tw = pt ? pt.offsetWidth : 50, th = pt ? pt.offsetHeight : 60, gap = 10, pad = 8;
-  const rows = Math.max(1, Math.floor((H - pad * 2 + gap) / (th + gap)));
-  let ci = 0;
-  const put = (n, c, r) => { const x = W - pad - tw / 2 - c * (tw + gap), y = pad + th / 2 + r * (th + gap);
-    draft.tents[n] = { x: Math.round(Math.max(1, Math.min(99, x / W * 100)) * 10) / 10, y: Math.round(Math.max(1, Math.min(99, y / H * 100)) * 10) / 10 }; };
-  // الأعمدة القديمة ما نلمسها عشان تعديلاتك باليد تبقى، بس نحط آخر عمود
-  cols.forEach((col, k) => { const last = k === cols.length - 1; col.forEach((n, i) => { if (i && i % rows === 0) ci++; if (last) put(n, ci, i % rows); }); ci++; });
-  // الخيام الباقية تنزاح بعد آخر عمود بالترتيب
-  const used = new Set(cols.flat()); const rest = [];
+  const tw = pt ? pt.offsetWidth : 50, th = pt ? pt.offsetHeight : 60, gapY = 8, gapX = COL_GAPS[colGap], pad = 8, m = 4;
+  // البحر والممر والمدخل والكاشير: الخيام ما تنحط فوقهم
+  const blocks = (draft.areas || []).map(a => ({ l: a.x / 100 * W - m, r: (a.x + a.w) / 100 * W + m, t: a.y / 100 * H - m, b: (a.y + a.h) / 100 * H + m }));
+  const free = (x, y) => !blocks.some(k => x + tw / 2 > k.l && x - tw / 2 < k.r && y + th / 2 > k.t && y - th / 2 < k.b);
+  const px = n => draft.tents[n].x / 100 * W;
+  // يعبّي الخيام عمود عمود من x لليسار، ويقفز أي مكان فيه رسم
+  const fill = (list, x) => {
+    let y = pad + th / 2, i = 0, guard = 0;
+    if (x - tw / 2 < 0) over = true;
+    while (i < list.length && guard++ < 5000){
+      if (y + th / 2 > H - pad + 0.5){ x -= tw + gapX; y = pad + th / 2; continue; }
+      if (x - tw / 2 < 0) over = true;
+      if (x - tw / 2 < 0 || free(x, y)){
+        draft.tents[list[i]] = { x: Math.round(Math.max(1, Math.min(99, x / W * 100)) * 10) / 10, y: Math.round(Math.max(1, Math.min(99, y / H * 100)) * 10) / 10 };
+        i++; y += th + gapY;
+      } else y += 4;
+    }
+    return x;
+  };
+  let over = false;
+  const prev = cols.slice(0, -1).flat(), last = cols[cols.length - 1];
+  let x = prev.length ? Math.min(...prev.map(px)) - (tw + gapX) : W - pad - tw / 2;
+  x = fill(last, x);
+  const used = new Set(cols.flat()), rest = [];
   for (let n = 1; n <= draft.count; n++) if (!used.has(n)) rest.push(n);
-  rest.forEach((n, i) => put(n, ci + Math.floor(i / rows), i % rows));
+  const minX = Math.min(...[...used].map(px));
+  fill(rest, minX - (tw + gapX));
   applyDraftStyles(map);
+  if (over) setTimeout(() => toast('over', '⚠️ المكان ما يكفي كل الخيام', 'كبّر عرض الكروكي 📐 أو طوله 📏، أو صغّر حجم الخيام ⛺، وبعدين اضغط ↩️ من جديد ورتّب', null, 7000), 50);
 }
 // 👆 رتّب بالضغط: كل ضغطة على الكروكي تحط الخيمة اللي عليها الدور
 let tapN = 0, tapStack = [];
@@ -979,11 +1000,12 @@ function renderEditbar(){
     <label class="mag"><input type="checkbox" id="magnet" ${magnet ? 'checked' : ''}> 🧲 مغناطيس <small>(يلصق الخيام على نفس الصف والعمود، ويرتّب الرسم على الشبكة)</small></label>
     <div class="lineup">
       <b>📋 رتّب بالأعمدة</b>
-      <small>اكتب أرقام خيام العمود واضغط «حطهم عمود». أول عمود ينحط على اليمين، واللي بعده جنبه. الخيام الباقية تنزاح على صوب لحالها</small>
+      <small>اكتب أرقام خيام العمود واضغط «حطهم عمود». أول عمود ينحط على اليمين، واللي بعده جنبه. الخيام الباقية تنزاح على صوب لحالها، وما تنحط فوق البحر أو الممر</small>
       <div class="row" style="align-items:center;gap:6px;margin-top:8px">
         <b id="colNo" style="flex:none"></b><span>من</span><input type="number" id="colFrom" inputmode="numeric" min="1" value="1">
         <span>لين</span><input type="number" id="colTo" inputmode="numeric" min="1" value="10">
       </div>
+      <div class="row" style="align-items:center;gap:6px;margin-top:8px"><span>المسافة بين الأعمدة</span><button class="mini" id="cgLess">➖</button><b id="cgTxt"></b><button class="mini" id="cgMore">➕</button></div>
       <div class="row" style="gap:6px;margin-top:8px"><button class="btn" id="colAdd" style="flex:2">➕ حطهم عمود</button><button class="mini" id="colReset" style="flex:1">↩️ من جديد</button></div>
       <div id="colList" class="collist"></div>
     </div>
