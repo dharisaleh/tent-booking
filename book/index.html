@@ -70,6 +70,10 @@ textarea.f{min-height:60px;resize:vertical}
 .pt.on svg{filter:drop-shadow(0 0 0 #fff) drop-shadow(0 3px 6px rgba(138,90,43,.6))}
 .mark{position:absolute;transform:translate(-50%,-50%);background:#5b4636;color:#fff;font-size:12px;font-weight:700;border-radius:8px;padding:4px 9px;white-space:nowrap}
 .tn.on{background:var(--acc);border-color:var(--acc)}
+.area.sq{height:auto!important;aspect-ratio:1/1}
+.area .sqt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1;text-align:center}
+.area .sqt big{font-size:1.5em}
+.area .sqt em{font-style:normal;font-weight:800;font-size:1.05em;background:rgba(255,255,255,.92);color:#3b2a1a;border-radius:6px;padding:1px 6px}
 .area{position:absolute;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;overflow:hidden}
 .area.tall span{writing-mode:vertical-rl;padding:8px 2px}
 .area span{background:rgba(255,255,255,.75);border-radius:8px;padding:2px 8px;white-space:nowrap;color:#3b2f25}
@@ -136,10 +140,11 @@ function layoutOf(c){
   for (let n = 1; n <= c.tents; n++) if (!tents[n]){ tents = {}; break; }
   return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1, wratio: Number(L.wratio) >= 1 ? Number(L.wratio) : 1 };
 }
+const SQ = { entry: 1, cashier: 1 };
 const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل', cashier: '💵 كاشير' };
 function areasHtml(areas){
   return (areas || []).map(a => { const k = AREA_T[a.k] ? a.k : 'path';
-    return `<div class="area ${k} ${a.r == null && (+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%"><span${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}>${AREA_T[k]}</span></div>`; }).join('');
+    return `<div class="area ${k} ${SQ[k] ? 'sq' : a.r == null && (+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%">${SQ[k] ? `<span class="sqt"><big>${AREA_T[k].split(' ')[0]}</big><em>${AREA_T[k].split(' ')[1]}</em></span>` : `<span${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}>${AREA_T[k]}</span>`}</div>`; }).join('');
 }
 const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 Z"/><path class="door" d="M23 14 L30 34 H16 Z"/></svg>';
 function mapHtml(c){
