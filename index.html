@@ -208,6 +208,8 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .lineup{background:var(--bg2, #f6f1e7);border-radius:12px;padding:10px;margin:0 0 8px}
 .lineup small{display:block;color:var(--mut);font-size:12px;margin-top:2px}
 .lineup input{width:64px;padding:6px;text-align:center}
+.collist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.collist span{background:#fff;border-radius:8px;padding:3px 8px;font-size:13px;font-weight:700}
 .tapov{position:absolute;inset:0;z-index:20;cursor:crosshair;background:rgba(224,69,123,.04)}
 #tapbar{position:fixed;left:10px;right:10px;bottom:12px;z-index:60;background:#fff;border:2px solid #e0457b;border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:16px}
 #tapbar .row{display:flex}
@@ -796,6 +798,41 @@ function applyDraftStyles(map){
   map.querySelectorAll('.mark[data-m]').forEach(el => { const m = draft.marks[Number(el.dataset.m)]; if (m){ el.style.left = m.x + '%'; el.style.top = m.y + '%'; } });
   map.querySelectorAll('.area[data-a]').forEach(el => { const a = draft.areas[Number(el.dataset.a)]; if (a){ el.style.left = a.x + '%'; el.style.top = a.y + '%'; el.style.width = a.w + '%'; el.style.height = a.h + '%'; } });
 }
+// 📋 رتّب بالأعمدة: كل عمود تكتب أرقامه، ينحط من اليمين لليسار، والباقي ينرص بعده
+let cols = [];
+function drawCols(){
+  const no = $('#colNo'); if (!no) return;
+  no.textContent = 'عمود ' + (cols.length + 1) + ':';
+  $('#colList').innerHTML = cols.map((c, i) => `<span>عمود ${i + 1}: ${c[0]}${c.length > 1 ? ' – ' + c[c.length - 1] : ''}</span>`).join('');
+}
+function addColumn(){
+  const map = $('#map'); if (!map || !draft) return;
+  const a = parseInt($('#colFrom').value, 10), b = parseInt($('#colTo').value, 10);
+  if (!a || !b || a < 1 || b < 1 || a > draft.count || b > draft.count){ toast('over', 'اكتب أرقام من 1 لين ' + draft.count, '', null, 4000); return; }
+  const list = []; if (a <= b) for (let n = a; n <= b; n++) list.push(n); else for (let n = a; n >= b; n--) list.push(n);
+  const used = new Set(cols.flat()); const fresh = list.filter(n => !used.has(n));
+  if (!fresh.length){ toast('over', 'هالخيام محطوطة بعمود قبل', '', null, 3500); return; }
+  cols.push(fresh); layoutCols(map);
+  const next = Math.max(...fresh) + 1;
+  if (next <= draft.count){ $('#colFrom').value = next; $('#colTo').value = Math.min(draft.count, next + fresh.length - 1); }
+  drawCols();
+  toast('soon', `✅ عمود ${cols.length}: ${fresh.length} خيمة`, 'لا تنسى تضغط 💾 حفظ لما تخلص', null, 3000);
+}
+function layoutCols(map){
+  const pt = map.querySelector('.pt[data-n]'); const W = map.offsetWidth, H = map.offsetHeight;
+  const tw = pt ? pt.offsetWidth : 50, th = pt ? pt.offsetHeight : 60, gap = 10, pad = 8;
+  const rows = Math.max(1, Math.floor((H - pad * 2 + gap) / (th + gap)));
+  let ci = 0;
+  const put = (n, c, r) => { const x = W - pad - tw / 2 - c * (tw + gap), y = pad + th / 2 + r * (th + gap);
+    draft.tents[n] = { x: Math.round(Math.max(1, Math.min(99, x / W * 100)) * 10) / 10, y: Math.round(Math.max(1, Math.min(99, y / H * 100)) * 10) / 10 }; };
+  // الأعمدة القديمة ما نلمسها عشان تعديلاتك باليد تبقى، بس نحط آخر عمود
+  cols.forEach((col, k) => { const last = k === cols.length - 1; col.forEach((n, i) => { if (i && i % rows === 0) ci++; if (last) put(n, ci, i % rows); }); ci++; });
+  // الخيام الباقية تنزاح بعد آخر عمود بالترتيب
+  const used = new Set(cols.flat()); const rest = [];
+  for (let n = 1; n <= draft.count; n++) if (!used.has(n)) rest.push(n);
+  rest.forEach((n, i) => put(n, ci + Math.floor(i / rows), i % rows));
+  applyDraftStyles(map);
+}
 // 👆 رتّب بالضغط: كل ضغطة على الكروكي تحط الخيمة اللي عليها الدور
 let tapN = 0, tapStack = [];
 function addTapOverlay(map){
@@ -932,7 +969,7 @@ function startEdit(){
   draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })) };
   editing = true; render();
 }
-function stopEdit(){ if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
+function stopEdit(){ cols = []; if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
 function renderEditbar(){
   const eb = $('#editbar');
   if (!editing){ eb.innerHTML = ''; return; }
@@ -940,6 +977,16 @@ function renderEditbar(){
   eb.innerHTML = `<div class="editbar">
     <div class="seg" style="margin-bottom:8px"><button data-em="tents" class="${editMode === 'tents' ? 'on' : ''}">⛺ تحريك الخيام</button><button data-em="draw" class="${editMode === 'draw' ? 'on' : ''}">🖌️ الرسم</button></div>
     <label class="mag"><input type="checkbox" id="magnet" ${magnet ? 'checked' : ''}> 🧲 مغناطيس <small>(يلصق الخيام على نفس الصف والعمود، ويرتّب الرسم على الشبكة)</small></label>
+    <div class="lineup">
+      <b>📋 رتّب بالأعمدة</b>
+      <small>اكتب أرقام خيام العمود واضغط «حطهم عمود». أول عمود ينحط على اليمين، واللي بعده جنبه. الخيام الباقية تنزاح على صوب لحالها</small>
+      <div class="row" style="align-items:center;gap:6px;margin-top:8px">
+        <b id="colNo" style="flex:none"></b><span>من</span><input type="number" id="colFrom" inputmode="numeric" min="1" value="1">
+        <span>لين</span><input type="number" id="colTo" inputmode="numeric" min="1" value="10">
+      </div>
+      <div class="row" style="gap:6px;margin-top:8px"><button class="btn" id="colAdd" style="flex:2">➕ حطهم عمود</button><button class="mini" id="colReset" style="flex:1">↩️ من جديد</button></div>
+      <div id="colList" class="collist"></div>
+    </div>
     <div class="lineup">
       <b>👆 رتّب بالضغط</b>
       <small>اضغط الزر، بعدين اضغط على الكروكي وين تبي خيمة 1، بعدين وين تبي خيمة 2، وهكذا… كل ضغطة تحط الخيمة اللي بعدها</small>
@@ -963,6 +1010,9 @@ function renderEditbar(){
     const mp = $('#map'); if (mp){ mp.classList.toggle('mode-tents', m === 'tents'); mp.classList.toggle('mode-draw', m === 'draw'); } };
   $('#editbar').querySelectorAll('[data-em]').forEach(b => b.onclick = () => setEM(b.dataset.em));
   setEM(editMode);
+  drawCols();
+  $('#colAdd').onclick = addColumn;
+  $('#colReset').onclick = () => { cols = []; drawCols(); };
   $('#tapGo').onclick = () => { const n = parseInt($('#tapStart').value, 10);
     if (!n || n < 1 || n > draft.count){ toast('over', 'اكتب رقم خيمة من 1 لين ' + draft.count, '', null, 4000); return; }
     tapStack = []; tapN = n; setEM('tents'); addTapOverlay($('#map')); drawTapBar();
