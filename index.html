@@ -208,6 +208,9 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .lineup{background:var(--bg2, #f6f1e7);border-radius:12px;padding:10px;margin:0 0 8px}
 .lineup small{display:block;color:var(--mut);font-size:12px;margin-top:2px}
 .lineup input{width:64px;padding:6px;text-align:center}
+.map .pt.linked{outline:2.5px solid var(--lc)!important;outline-offset:1px;border-radius:10px;background:color-mix(in srgb,var(--lc) 10%,transparent)!important}
+.collist span button{border:0;background:transparent;color:#c00;font-weight:800;padding:0 2px;cursor:pointer}
+.collist span{border:2px solid transparent}
 .collist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .collist span{background:#fff;border-radius:8px;padding:3px 8px;font-size:13px;font-weight:700}
 .tapov{position:absolute;inset:0;z-index:20;cursor:crosshair;background:rgba(224,69,123,.04)}
@@ -722,7 +725,7 @@ function layoutOf(cafe){
   // لو بعض الخيام ما لها مكان محفوظ (انضافت من الإعدادات)، رتّب الكل ترتيب تلقائي عشان ما تتداخل
   const total = tentsOf(cafe);
   for (let n = 1; n <= total; n++) if (!tents[n]){ tents = {}; break; }
-  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1, wratio: Number(L.wratio) >= 1 ? Number(L.wratio) : 1 };
+  return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1, wratio: Number(L.wratio) >= 1 ? Number(L.wratio) : 1, groups: Array.isArray(L.groups) ? L.groups.filter(g => Array.isArray(g)).map(g => g.map(Number).filter(n => n >= 1 && n <= total)).filter(g => g.length > 1) : [] };
 }
 
 /* مناطق الكروكي: بحر، ممر، مدخل */
@@ -768,7 +771,7 @@ function renderMap(cafe, total, H){
   $('#zOut').onclick = () => setZ(mapZoom - 0.2);
   $('#zFit').onclick = () => { const w = $('#mapwrap'); setZ(Math.min(w.clientWidth / (mapW / Z), w.clientHeight / (mapH / Z)) * 0.98); };
   bindTentClicks(cafe, '.pt');
-  if (editing){ bindDrag($('#map')); bindCanvasResize(cafe, W, Z); addTapOverlay($('#map')); }
+  if (editing){ bindDrag($('#map')); bindCanvasResize(cafe, W, Z); addTapOverlay($('#map')); markLinked(); }
 }
 
 // تغيير مقاس اللوحة مع إبقاء الخيام والرسم بنفس أماكنها (المساحة الجديدة تنضاف على اليسار وتحت)
@@ -798,6 +801,24 @@ function applyDraftStyles(map){
   map.querySelectorAll('.mark[data-m]').forEach(el => { const m = draft.marks[Number(el.dataset.m)]; if (m){ el.style.left = m.x + '%'; el.style.top = m.y + '%'; } });
   map.querySelectorAll('.area[data-a]').forEach(el => { const a = draft.areas[Number(el.dataset.a)]; if (a){ el.style.left = a.x + '%'; el.style.top = a.y + '%'; el.style.width = a.w + '%'; el.style.height = a.h + '%'; } });
 }
+// 🔗 ربط الخيام: الخيام المربوطة تتحرك مع بعض وما يخترب ترتيبها
+function groupOf(n){ return (draft && draft.groups || []).find(g => g.includes(n)); }
+function linkTents(list){
+  draft.groups = draft.groups.map(g => g.filter(k => !list.includes(k))).filter(g => g.length > 1);
+  if (list.length > 1) draft.groups.push(list.slice());
+  markLinked(); drawGroups();
+}
+function markLinked(){
+  const map = $('#map'); if (!map || !draft) return;
+  map.querySelectorAll('.pt[data-n]').forEach(el => { const gi = draft.groups.findIndex(g => g.includes(Number(el.dataset.n)));
+    el.classList.toggle('linked', gi >= 0); if (gi >= 0) el.style.setProperty('--lc', LINK_COLORS[gi % LINK_COLORS.length]); });
+}
+const LINK_COLORS = ['#e0457b', '#2b7de9', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
+function drawGroups(){
+  const box = $('#grpList'); if (!box) return;
+  box.innerHTML = draft.groups.length ? draft.groups.map((g, i) => `<span style="border-color:${LINK_COLORS[i % LINK_COLORS.length]}">🔗 ${g[0]} – ${g[g.length - 1]} <button data-ug="${i}" title="فك الربط">✕</button></span>`).join('') : '<small>ما فيه خيام مربوطة</small>';
+  box.querySelectorAll('[data-ug]').forEach(b => b.onclick = () => { draft.groups.splice(Number(b.dataset.ug), 1); markLinked(); drawGroups(); });
+}
 // 📋 رتّب بالأعمدة: كل عمود تكتب أرقامه، ينحط من اليمين لليسار، والباقي ينرص بعده
 let cols = [];
 function drawCols(){
@@ -812,13 +833,10 @@ function addColumn(){
   const list = []; if (a <= b) for (let n = a; n <= b; n++) list.push(n); else for (let n = a; n >= b; n--) list.push(n);
   const used = new Set(cols.flat()); const fresh = list.filter(n => !used.has(n));
   if (!fresh.length){ toast('over', 'هالخيام محطوطة بعمود قبل', '', null, 3500); return; }
-  cols.push(fresh); layoutCols(map);
+  cols.push(fresh); layoutCols(map); if ($('#colLink').checked) linkTents(fresh);
   const next = Math.max(...fresh) + 1;
   if (next <= draft.count){ $('#colFrom').value = next; $('#colTo').value = Math.min(draft.count, next + fresh.length - 1); }
-  drawCols();
-  const cgShow = () => $('#cgTxt').textContent = GAP_TXT[colGap]; cgShow();
-  $('#cgLess').onclick = () => { colGap = Math.max(0, colGap - 1); cgShow(); };
-  $('#cgMore').onclick = () => { colGap = Math.min(4, colGap + 1); cgShow(); };
+  drawCols(); drawGroups();
   toast('soon', `✅ عمود ${cols.length}: ${fresh.length} خيمة`, 'لا تنسى تضغط 💾 حفظ لما تخلص', null, 3000);
 }
 let colGap = 2; const COL_GAPS = [4, 12, 24, 40, 60], GAP_TXT = ['ملاصقة', 'قريبة', 'عادية', 'واسعة', 'واسعة جداً'];
@@ -892,7 +910,8 @@ function snapPoint(map, xPct, yPct, skipN, skipM){
   if (!magnet) return { x: xPct, y: yPct };
   const W = map.offsetWidth, H = map.offsetHeight, px = xPct / 100 * W, py = yPct / 100 * H;
   const pts = [];
-  Object.entries(draft.tents).forEach(([n, p]) => { if (String(n) !== String(skipN)) pts.push(p); });
+  const sg = skipN != null ? (groupOf(Number(skipN)) || []) : [];
+  Object.entries(draft.tents).forEach(([n, p]) => { if (String(n) !== String(skipN) && !sg.includes(Number(n))) pts.push(p); });
   draft.marks.forEach((m, i) => { if (i !== skipM) pts.push(m); });
   let bx = null, by = null, dx = SNAP_PX, dy = SNAP_PX;
   pts.forEach(p => { const ox = p.x / 100 * W, oy = p.y / 100 * H;
@@ -966,7 +985,16 @@ function bindDrag(map){
         const sn = snapPoint(map, (lastX - r.left) / r.width * 100, (lastY - r.top) / r.height * 100, el.dataset.n, el.dataset.m !== undefined ? Number(el.dataset.m) : -1);
         const x = clamp(sn.x), y = clamp(sn.y);
         el.style.left = x + '%'; el.style.top = y + '%'; showGuides(map, sn.gx, sn.gy);
-        if (el.dataset.n) draft.tents[el.dataset.n] = { x, y };
+        if (el.dataset.n){
+          const n = Number(el.dataset.n), g = groupOf(n), old = draft.tents[n];
+          if (g && old){ // 🔗 مربوطة: كل الخيام اللي معها تتحرك نفس الشي
+            let dx = x - old.x, dy = y - old.y;
+            g.forEach(k => { const p = draft.tents[k]; if (!p || k === n) return;
+              dx = Math.max(1 - p.x, Math.min(99 - p.x, dx)); dy = Math.max(1 - p.y, Math.min(99 - p.y, dy)); });
+            g.forEach(k => { const p = draft.tents[k]; if (!p) return; draft.tents[k] = { x: Math.round((old.x + dx + (p.x - old.x)) * 10) / 10, y: Math.round((old.y + dy + (p.y - old.y)) * 10) / 10 }; });
+            applyDraftStyles(map);
+          } else draft.tents[n] = { x, y };
+        }
         else { const m = draft.marks[Number(el.dataset.m)]; if (m){ m.x = x; m.y = y; } }
       };
       // لو سحبت لطرف الشاشة، الصفحة تنزل أو تطلع بروحها
@@ -987,7 +1015,7 @@ function startEdit(){
   const cafe = cafes.find(c => c.id === selCafe); if (!cafe) return;
   const L = layoutOf(cafe), total = tentsOf(cafe), tents = {};
   for (let n = 1; n <= total; n++){ const p = L.tents[n] || defaultPos(n, total); tents[n] = { x: p.x, y: p.y }; }
-  draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })) };
+  draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })), groups: (L.groups || []).map(g => g.slice()) };
   editing = true; render();
 }
 function stopEdit(){ cols = []; if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
@@ -1007,7 +1035,19 @@ function renderEditbar(){
       </div>
       <div class="row" style="align-items:center;gap:6px;margin-top:8px"><span>المسافة بين الأعمدة</span><button class="mini" id="cgLess">➖</button><b id="cgTxt"></b><button class="mini" id="cgMore">➕</button></div>
       <div class="row" style="gap:6px;margin-top:8px"><button class="btn" id="colAdd" style="flex:2">➕ حطهم عمود</button><button class="mini" id="colReset" style="flex:1">↩️ من جديد</button></div>
+      <label class="mag" style="margin:8px 0 0"><input type="checkbox" id="colLink" checked> 🔗 اربط كل عمود عشان يتحرك كله مع بعض</label>
       <div id="colList" class="collist"></div>
+    </div>
+    <div class="lineup">
+      <b>🔗 ربط الخيام</b>
+      <small>الخيام المربوطة تتحرك مع بعض: تسحب وحدة منها وكل الصف أو العمود يمشي معها، وما يخترب الترتيب</small>
+      <div class="row" style="align-items:center;gap:6px;margin-top:8px">
+        <span>من</span><input type="number" id="lkFrom" inputmode="numeric" min="1" value="1">
+        <span>لين</span><input type="number" id="lkTo" inputmode="numeric" min="1" value="5">
+        <button class="btn" id="lkGo" style="flex:1">🔗 اربطهم</button>
+      </div>
+      <div id="grpList" class="collist"></div>
+      <button class="mini" id="lkClear" style="margin-top:8px">فك ربط الكل</button>
     </div>
     <div class="lineup">
       <b>👆 رتّب بالضغط</b>
@@ -1032,7 +1072,15 @@ function renderEditbar(){
     const mp = $('#map'); if (mp){ mp.classList.toggle('mode-tents', m === 'tents'); mp.classList.toggle('mode-draw', m === 'draw'); } };
   $('#editbar').querySelectorAll('[data-em]').forEach(b => b.onclick = () => setEM(b.dataset.em));
   setEM(editMode);
-  drawCols();
+  drawCols(); drawGroups();
+  $('#lkGo').onclick = () => { const a = parseInt($('#lkFrom').value, 10), b = parseInt($('#lkTo').value, 10);
+    if (!a || !b || a < 1 || b < 1 || a > draft.count || b > draft.count || a === b){ toast('over', 'اكتب رقمين مختلفين من 1 لين ' + draft.count, '', null, 4000); return; }
+    const list = []; for (let n = Math.min(a, b); n <= Math.max(a, b); n++) list.push(n);
+    linkTents(list); toast('soon', `🔗 ربطت الخيام من ${list[0]} لين ${list[list.length - 1]}`, 'اسحب وحدة منها وكلهم يمشون معها', null, 3500); };
+  $('#lkClear').onclick = () => { draft.groups = []; markLinked(); drawGroups(); };
+  const cgShow = () => $('#cgTxt').textContent = GAP_TXT[colGap]; cgShow();
+  $('#cgLess').onclick = () => { colGap = Math.max(0, colGap - 1); cgShow(); };
+  $('#cgMore').onclick = () => { colGap = Math.min(4, colGap + 1); cgShow(); };
   $('#colAdd').onclick = addColumn;
   $('#colReset').onclick = () => { cols = []; drawCols(); };
   $('#tapGo').onclick = () => { const n = parseInt($('#tapStart').value, 10);
@@ -1067,7 +1115,7 @@ function renderEditbar(){
     if (draft.count <= 1) return;
     const n = draft.count;
     if (bookings.some(b => b.cafeId === selCafe && Number(b.tent) === n && b.name)){ $('#eerr').textContent = 'الخيمة ' + n + ' عليها حجز هاليوم، ما يصير تزيلها.'; return; }
-    delete draft.tents[n]; draft.count--; showCount(); $('#eerr').textContent = ''; render();
+    delete draft.tents[n]; draft.groups = draft.groups.map(g => g.filter(k => k !== n)).filter(g => g.length > 1); draft.count--; showCount(); $('#eerr').textContent = ''; render();
   };
   $('#autoMap').onclick = () => { const total = draft.count; for (let n = 1; n <= total; n++) draft.tents[n] = defaultPos(n, total); render(); };
   $('#cancelMap').onclick = stopEdit;
@@ -1076,7 +1124,7 @@ function renderEditbar(){
     try {
 
       const tents = {}; for (let n = 1; n <= draft.count; n++) if (draft.tents[n]) tents[n] = draft.tents[n];
-      await q(sb.from('cafes').update({ tents: draft.count, layout: { tents, marks: draft.marks, areas: draft.areas, ratio: draft.ratio, tsize: draft.tsize, wratio: draft.wratio } }).eq('id', selCafe));
+      await q(sb.from('cafes').update({ tents: draft.count, layout: { tents, marks: draft.marks, areas: draft.areas, ratio: draft.ratio, tsize: draft.tsize, wratio: draft.wratio, groups: draft.groups.filter(g => g.length > 1) } }).eq('id', selCafe));
       await loadCafes();
       stopEdit();
     } catch(err){ $('#eerr').textContent = errText(err); btn.disabled = false; }
