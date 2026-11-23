@@ -202,6 +202,12 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .map.edit{touch-action:pan-x pan-y}
 .mapres{position:absolute;bottom:4px;left:4px;z-index:6;width:34px;height:34px;border-radius:10px;background:var(--acc);color:#fff;display:grid;place-items:center;font-size:20px;cursor:nesw-resize;touch-action:none;box-shadow:0 2px 6px rgba(0,0,0,.25)}
 .map[data-size]::after{content:attr(data-size);position:absolute;top:6px;left:50%;transform:translateX(-50%);background:var(--acc);color:#fff;border-radius:8px;padding:2px 8px;font-size:12px;font-weight:800;z-index:7}
+.guide{position:absolute;z-index:8;pointer-events:none;display:none;background:#e0457b}
+.guide.v{top:0;bottom:0;width:2px;margin-left:-1px}
+.guide.h{left:0;right:0;height:2px;margin-top:-1px}
+.mag{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-weight:700;font-size:14px}
+.mag input{width:20px;height:20px;accent-color:var(--acc)}
+.mag small{color:var(--mut);font-weight:500;font-size:12px}
 .zoombar{display:flex;gap:6px;align-items:center;justify-content:center;margin:0 0 8px;font-size:13px;font-weight:700;color:var(--mut)}
 .zoombar .mini{padding:5px 9px}
 .pt small{font-size:max(8px,calc(var(--s,64px)*.2))}
@@ -342,6 +348,7 @@ let cafes = [], bookings = [], selCafe = null, selDate = dstr(new Date()), selHo
 let cafesLoaded = false, unsubB = null, loadTimer = null;
 let view = (() => { try { return localStorage.getItem('tentView') || 'map'; } catch(_){ return 'map'; } })();
 let editing = false, draft = null, dragging = false, editMode = 'tents', lastRatio = 1.1, resizeMap = null, widenMap = null;
+let magnet = (() => { try { return localStorage.getItem('magnet') !== '0'; } catch(_){ return true; } })();
 let mapZoom = (() => { try { return Number(localStorage.getItem('mapZoom')) || 1; } catch(_){ return 1; } })();
 
 function setStatus(t){ $('#status').textContent = t || ''; }
@@ -781,6 +788,29 @@ function applyDraftStyles(map){
   map.querySelectorAll('.mark[data-m]').forEach(el => { const m = draft.marks[Number(el.dataset.m)]; if (m){ el.style.left = m.x + '%'; el.style.top = m.y + '%'; } });
   map.querySelectorAll('.area[data-a]').forEach(el => { const a = draft.areas[Number(el.dataset.a)]; if (a){ el.style.left = a.x + '%'; el.style.top = a.y + '%'; el.style.width = a.w + '%'; el.style.height = a.h + '%'; } });
 }
+// 🧲 المغناطيس: يلصق على صف/عمود الخيام القريبة، وإلا على نقاط الشبكة (كل 11 بكسل)
+const GRID = 11, SNAP_PX = 10;
+function snapPoint(map, xPct, yPct, skipN, skipM){
+  if (!magnet) return { x: xPct, y: yPct };
+  const W = map.offsetWidth, H = map.offsetHeight, px = xPct / 100 * W, py = yPct / 100 * H;
+  const pts = [];
+  Object.entries(draft.tents).forEach(([n, p]) => { if (String(n) !== String(skipN)) pts.push(p); });
+  draft.marks.forEach((m, i) => { if (i !== skipM) pts.push(m); });
+  let bx = null, by = null, dx = SNAP_PX, dy = SNAP_PX;
+  pts.forEach(p => { const ox = p.x / 100 * W, oy = p.y / 100 * H;
+    if (Math.abs(ox - px) < dx){ dx = Math.abs(ox - px); bx = p.x; }
+    if (Math.abs(oy - py) < dy){ dy = Math.abs(oy - py); by = p.y; } });
+  const g = v => Math.round(v / GRID) * GRID;
+  return { x: bx !== null ? bx : g(px) / W * 100, y: by !== null ? by : g(py) / H * 100, gx: bx, gy: by };
+}
+function snapLen(map, pct, horiz){ if (!magnet) return pct; const L = horiz ? map.offsetWidth : map.offsetHeight; return Math.round(pct / 100 * L / GRID) * GRID / L * 100; }
+function showGuides(map, gx, gy){
+  let a = $('#gdx'), b = $('#gdy');
+  if (!a){ a = document.createElement('div'); a.id = 'gdx'; a.className = 'guide v'; map.appendChild(a); }
+  if (!b){ b = document.createElement('div'); b.id = 'gdy'; b.className = 'guide h'; map.appendChild(b); }
+  a.style.display = gx != null ? 'block' : 'none'; if (gx != null) a.style.left = gx + '%';
+  b.style.display = gy != null ? 'block' : 'none'; if (gy != null) b.style.top = gy + '%';
+}
 // مقبض زاوية الكروكي: تسحبه وتكبّر أو تصغّر المساحة (العرض والطول مع بعض)
 function bindCanvasResize(cafe, W, Z){
   const hnd = $('#mapres'), map = $('#map'); if (!hnd || !map) return;
@@ -813,6 +843,11 @@ function bindDrag(map){
         if (resize){ a.w = clampA(o.w + (document.dir === 'rtl' ? -dx : dx), 3, 100 - a.x); a.h = clampA(o.h + dy, 2, 100 - a.y);
           if (document.dir === 'rtl'){ a.w = clampA(o.w - dx, 3, 100); a.x = clampA(o.x + dx, 0, 100 - a.w); } }
         else { a.x = clampA(o.x + dx, 0, 100 - a.w); a.y = clampA(o.y + dy, 0, 100 - a.h); }
+        if (magnet){ // يلصق على الشبكة وعلى أطراف الكروكي
+          const edge = (v, max) => v < 1.5 ? 0 : v > max - 1.5 ? max : v;
+          a.w = clampA(snapLen(map, a.w, true), 2, 100); a.h = clampA(snapLen(map, a.h, false), 1, 100);
+          a.x = clampA(edge(snapLen(map, a.x, true), 100 - a.w), 0, 100 - a.w); a.y = clampA(edge(snapLen(map, a.y, false), 100 - a.h), 0, 100 - a.h);
+          if (100 - a.x - a.w < 1.5) a.x = clampA(100 - a.w, 0, 100); }
         el.style.left = a.x + '%'; el.style.top = a.y + '%'; el.style.width = a.w + '%'; el.style.height = a.h + '%';
       };
       el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; dragging = false; el.classList.remove('drag'); };
@@ -830,8 +865,9 @@ function bindDrag(map){
       let lastX = e.clientX, lastY = e.clientY, scroller = null;
       const place = () => {
         const r = map.getBoundingClientRect();
-        const x = clamp((lastX - r.left) / r.width * 100), y = clamp((lastY - r.top) / r.height * 100);
-        el.style.left = x + '%'; el.style.top = y + '%';
+        const sn = snapPoint(map, (lastX - r.left) / r.width * 100, (lastY - r.top) / r.height * 100, el.dataset.n, el.dataset.m !== undefined ? Number(el.dataset.m) : -1);
+        const x = clamp(sn.x), y = clamp(sn.y);
+        el.style.left = x + '%'; el.style.top = y + '%'; showGuides(map, sn.gx, sn.gy);
         if (el.dataset.n) draft.tents[el.dataset.n] = { x, y };
         else { const m = draft.marks[Number(el.dataset.m)]; if (m){ m.x = x; m.y = y; } }
       };
@@ -845,7 +881,7 @@ function bindDrag(map){
       };
       scroller = setInterval(edge, 30);
       el.onpointermove = ev => { lastX = ev.clientX; lastY = ev.clientY; place(); };
-      el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; dragging = false; clearInterval(scroller); el.classList.remove('drag'); };
+      el.onpointerup = el.onpointercancel = () => { el.onpointermove = null; dragging = false; clearInterval(scroller); el.classList.remove('drag'); showGuides(map, null, null); };
     };
   });
 }
@@ -863,6 +899,7 @@ function renderEditbar(){
   if (eb.firstChild) return;
   eb.innerHTML = `<div class="editbar">
     <div class="seg" style="margin-bottom:8px"><button data-em="tents" class="${editMode === 'tents' ? 'on' : ''}">⛺ تحريك الخيام</button><button data-em="draw" class="${editMode === 'draw' ? 'on' : ''}">🖌️ الرسم</button></div>
+    <label class="mag"><input type="checkbox" id="magnet" ${magnet ? 'checked' : ''}> 🧲 مغناطيس <small>(يلصق الخيام على نفس الصف والعمود، ويرتّب الرسم على الشبكة)</small></label>
     <p id="emHelp"></p>
     <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">📏 طول الكروكي</b><button class="mini" id="mapShorter">➖ أقصر</button><button class="mini" id="mapTaller">➕ أطول</button></div>
     <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">📐 عرض الكروكي</b><button class="mini" id="mapNarrow">➖ أضيق</button><button class="mini" id="mapWide">➕ أعرض</button></div>
@@ -878,6 +915,7 @@ function renderEditbar(){
     const mp = $('#map'); if (mp){ mp.classList.toggle('mode-tents', m === 'tents'); mp.classList.toggle('mode-draw', m === 'draw'); } };
   $('#editbar').querySelectorAll('[data-em]').forEach(b => b.onclick = () => setEM(b.dataset.em));
   setEM(editMode);
+  $('#magnet').onchange = e => { magnet = e.target.checked; try { localStorage.setItem('magnet', magnet ? '1' : '0'); } catch(_){} };
   // تطويل الكروكي يضيف مساحة فاضية تحت، والخيام والرسم يظلون بأماكنهم
   resizeMap = nr => { scaleDraftH(nr); roundDraft(); render(); };
   const showTs = () => { const e = $('#tsz'); if (e) e.textContent = Math.round(draft.tsize * 100) + '%'; };
