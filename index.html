@@ -214,6 +214,8 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .collist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .collist span{background:#fff;border-radius:8px;padding:3px 8px;font-size:13px;font-weight:700}
 .tapov{position:absolute;inset:0;z-index:20;cursor:crosshair;background:rgba(224,69,123,.04)}
+#undoBtn{position:fixed;left:12px;bottom:120px;z-index:61;border:0;border-radius:999px;padding:12px 18px;font:inherit;font-size:16px;font-weight:800;background:#1f2937;color:#fff;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
+#undoBtn:disabled{opacity:.35}
 #tapbar{position:fixed;left:10px;right:10px;bottom:12px;z-index:60;background:#fff;border:2px solid #e0457b;border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:16px}
 #tapbar .row{display:flex}
 .pt.justset{animation:jset .6s}
@@ -771,7 +773,7 @@ function renderMap(cafe, total, H){
   $('#zOut').onclick = () => setZ(mapZoom - 0.2);
   $('#zFit').onclick = () => { const w = $('#mapwrap'); setZ(Math.min(w.clientWidth / (mapW / Z), w.clientHeight / (mapH / Z)) * 0.98); };
   bindTentClicks(cafe, '.pt');
-  if (editing){ bindDrag($('#map')); bindCanvasResize(cafe, W, Z); addTapOverlay($('#map')); markLinked(); }
+  if (editing){ $('#map').addEventListener('pointerdown', snap, true); $('#map').addEventListener('pointerup', () => setTimeout(updUndo, 0), true); bindDrag($('#map')); bindCanvasResize(cafe, W, Z); addTapOverlay($('#map')); markLinked(); }
 }
 
 // تغيير مقاس اللوحة مع إبقاء الخيام والرسم بنفس أماكنها (المساحة الجديدة تنضاف على اليسار وتحت)
@@ -1011,18 +1013,44 @@ function bindDrag(map){
     };
   });
 }
+// ↩️ تراجع: نحفظ نسخة قبل أي تغيير، والزر يرجّع آخر نسخة
+let hist = [];
+const snapNow = () => JSON.stringify({ d: draft, c: cols });
+function snap(){ if (!editing || !draft) return; const st = snapNow(); if (hist[hist.length - 1] !== st){ hist.push(st); if (hist.length > 80) hist.shift(); } updUndo(); }
+function undo(){
+  if (!editing || !draft) return;
+  if (tapN && tapStack.length){ $('#tapUndo').click(); return; }
+  const cur = snapNow(); while (hist.length && hist[hist.length - 1] === cur) hist.pop();
+  const st = hist.pop(); if (!st){ updUndo(); toast('over', 'ما فيه شي ترجعه', '', null, 2500); return; }
+  const o = JSON.parse(st); draft = o.d; cols = o.c || [];
+  const y = window.scrollY, w = $('#mapwrap'), sl = w ? w.scrollLeft : 0, stp = w ? w.scrollTop : 0;
+  $('#editbar').innerHTML = ''; render();
+  window.scrollTo(0, y); const w2 = $('#mapwrap'); if (w2){ w2.scrollLeft = sl; w2.scrollTop = stp; }
+  updUndo();
+}
+function updUndo(){ const b = $('#undoBtn'); if (!b) return; const cur = snapNow(); b.disabled = !hist.some(h => h !== cur); }
+function showUndo(on){
+  let b = $('#undoBtn');
+  if (!on){ if (b) b.remove(); return; }
+  if (!b){ b = document.createElement('button'); b.id = 'undoBtn'; b.textContent = '↩️ تراجع'; b.onclick = undo; document.body.appendChild(b); }
+  updUndo();
+}
+document.addEventListener('keydown', e => { if (editing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z'){ e.preventDefault(); undo(); } });
 function startEdit(){
   const cafe = cafes.find(c => c.id === selCafe); if (!cafe) return;
   const L = layoutOf(cafe), total = tentsOf(cafe), tents = {};
   for (let n = 1; n <= total; n++){ const p = L.tents[n] || defaultPos(n, total); tents[n] = { x: p.x, y: p.y }; }
   draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })), groups: (L.groups || []).map(g => g.slice()) };
-  editing = true; render();
+  editing = true; hist = []; render(); showUndo(true);
 }
-function stopEdit(){ cols = []; if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
+function stopEdit(){ cols = []; hist = []; showUndo(false); if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
 function renderEditbar(){
   const eb = $('#editbar');
   if (!editing){ eb.innerHTML = ''; return; }
   if (eb.firstChild) return;
+  if (!eb.dataset.hooked){ eb.dataset.hooked = '1';
+  eb.addEventListener('click', e => { const b = e.target.closest('button'); if (b && !['saveMap', 'cancelMap'].includes(b.id)) setTimeout(updUndo, 0); });
+  eb.addEventListener('pointerdown', e => { const b = e.target.closest('button'); if (b && !['saveMap', 'cancelMap'].includes(b.id)) snap(); }, true); }
   eb.innerHTML = `<div class="editbar">
     <div class="seg" style="margin-bottom:8px"><button data-em="tents" class="${editMode === 'tents' ? 'on' : ''}">⛺ تحريك الخيام</button><button data-em="draw" class="${editMode === 'draw' ? 'on' : ''}">🖌️ الرسم</button></div>
     <label class="mag"><input type="checkbox" id="magnet" ${magnet ? 'checked' : ''}> 🧲 مغناطيس <small>(يلصق الخيام على نفس الصف والعمود، ويرتّب الرسم على الشبكة)</small></label>
