@@ -77,6 +77,8 @@ textarea.f{min-height:60px;resize:vertical}
 .area.path{background:repeating-linear-gradient(45deg,#e6dccb 0 10px,#dacdb6 10px 20px);border:1px dashed #b9a88d}
 .area.entry{background:#7a5332;border:2px solid #5b3c22}
 .area.entry span{background:transparent;color:#fff}
+.area.cashier{background:linear-gradient(180deg,#a8774a,#7b5130);border:2px solid #4e321c;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
+.area.cashier span{background:#fff8ec}
 .pt,.mark{z-index:1}
 .mapwrap{overflow:auto;max-height:75vh;border-radius:16px;-webkit-overflow-scrolling:touch}
 .mapwrap .map{max-width:none}
@@ -134,7 +136,7 @@ function layoutOf(c){
   for (let n = 1; n <= c.tents; n++) if (!tents[n]){ tents = {}; break; }
   return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1, wratio: Number(L.wratio) >= 1 ? Number(L.wratio) : 1 };
 }
-const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل' };
+const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل', cashier: '💵 كاشير' };
 function areasHtml(areas){
   return (areas || []).map(a => { const k = AREA_T[a.k] ? a.k : 'path';
     return `<div class="area ${k} ${(+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%"><span>${AREA_T[k]}</span></div>`; }).join('');
