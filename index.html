@@ -1030,7 +1030,10 @@ function bindDrag(map){
       const place = () => {
         const r = map.getBoundingClientRect();
         const sn = snapPoint(map, (lastX - r.left) / r.width * 100, (lastY - r.top) / r.height * 100, el.dataset.n, el.dataset.m !== undefined ? Number(el.dataset.m) : -1);
-        const x = clamp(sn.x), y = clamp(sn.y);
+        // الحد: نص حجم الخيمة بس، عشان تقدر تحطها لين طرف الكروكي فوق وتحت ويمين ويسار
+        const my = el.offsetHeight / 2 / map.offsetHeight * 100;
+        const lim = (v, m) => Math.round(Math.max(m, Math.min(100 - m, v)) * 10) / 10;
+        const x = lim(sn.x, el.offsetWidth / 2 / map.offsetWidth * 100), y = lim(sn.y, my);
         el.style.left = x + '%'; el.style.top = y + '%'; showGuides(map, sn.gx, sn.gy);
         if (el.dataset.n){
           const n = Number(el.dataset.n), g = groupOf(n), old = draft.tents[n];
