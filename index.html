@@ -208,6 +208,11 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .lineup{background:var(--bg2, #f6f1e7);border-radius:12px;padding:10px;margin:0 0 8px}
 .lineup small{display:block;color:var(--mut);font-size:12px;margin-top:2px}
 .lineup input{width:64px;padding:6px;text-align:center}
+.tapov{position:absolute;inset:0;z-index:20;cursor:crosshair;background:rgba(224,69,123,.04)}
+#tapbar{position:fixed;left:10px;right:10px;bottom:12px;z-index:60;background:#fff;border:2px solid #e0457b;border-radius:14px;padding:10px 12px;box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:16px}
+#tapbar .row{display:flex}
+.pt.justset{animation:jset .6s}
+@keyframes jset{0%{transform:translate(-50%,-50%) scale(1.5)}100%{transform:translate(-50%,-50%) scale(1)}}
 .mag{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-weight:700;font-size:14px}
 .mag input{width:20px;height:20px;accent-color:var(--acc)}
 .mag small{color:var(--mut);font-weight:500;font-size:12px}
@@ -761,7 +766,7 @@ function renderMap(cafe, total, H){
   $('#zOut').onclick = () => setZ(mapZoom - 0.2);
   $('#zFit').onclick = () => { const w = $('#mapwrap'); setZ(Math.min(w.clientWidth / (mapW / Z), w.clientHeight / (mapH / Z)) * 0.98); };
   bindTentClicks(cafe, '.pt');
-  if (editing){ bindDrag($('#map')); bindCanvasResize(cafe, W, Z); }
+  if (editing){ bindDrag($('#map')); bindCanvasResize(cafe, W, Z); addTapOverlay($('#map')); }
 }
 
 // تغيير مقاس اللوحة مع إبقاء الخيام والرسم بنفس أماكنها (المساحة الجديدة تنضاف على اليسار وتحت)
@@ -791,28 +796,37 @@ function applyDraftStyles(map){
   map.querySelectorAll('.mark[data-m]').forEach(el => { const m = draft.marks[Number(el.dataset.m)]; if (m){ el.style.left = m.x + '%'; el.style.top = m.y + '%'; } });
   map.querySelectorAll('.area[data-a]').forEach(el => { const a = draft.areas[Number(el.dataset.a)]; if (a){ el.style.left = a.x + '%'; el.style.top = a.y + '%'; el.style.width = a.w + '%'; el.style.height = a.h + '%'; } });
 }
-// 🚩 رصّ مجموعة خيام ورا بعض بدءاً من مكان أول خيمة، ولو وصلت للطرف تنزل سطر جديد
-let luGap = 2;
-function lineUp(dir){
-  const map = $('#map'); if (!map || !draft) return;
-  let a = parseInt($('#luFrom').value, 10), b = parseInt($('#luTo').value, 10);
-  if (!a || !b || a < 1 || b < 1 || a > draft.count || b > draft.count){ toast('over', 'اكتب أرقام خيام صحيحة من 1 لين ' + draft.count, '', null, 4000); return; }
-  const list = []; if (a <= b) for (let n = a; n <= b; n++) list.push(n); else for (let n = a; n >= b; n--) list.push(n);
-  const pt = map.querySelector('.pt[data-n]'); const W = map.offsetWidth, H = map.offsetHeight;
-  const tw = pt ? pt.offsetWidth : 50, th = pt ? pt.offsetHeight : 60, extra = [0, 6, 14, 26, 42][luGap];
-  const sx = (tw + extra) / W * 100, sy = (th + extra) / H * 100;
-  const mx = tw / 2 / W * 100, my = th / 2 / H * 100;
-  const st = draft.tents[list[0]]; let x = st.x, y = st.y;
-  const horiz = dir === 'left' || dir === 'right', step = dir === 'left' || dir === 'up' ? -1 : 1;
-  list.forEach((n, i) => {
-    if (i){
-      if (horiz){ x += step * sx; if (x < mx || x > 100 - mx){ x = st.x; y += sy; } }
-      else { y += step * sy; if (y < my || y > 100 - my){ y = st.y; x -= sx; } }
-    }
-    draft.tents[n] = { x: Math.round(Math.max(1, Math.min(99, x)) * 10) / 10, y: Math.round(Math.max(1, Math.min(99, y)) * 10) / 10 };
-  });
-  applyDraftStyles(map);
-  toast('soon', '✅ انرصّت ' + list.length + ' خيمة', 'لا تنسى تضغط 💾 حفظ', null, 3500);
+// 👆 رتّب بالضغط: كل ضغطة على الكروكي تحط الخيمة اللي عليها الدور
+let tapN = 0, tapStack = [];
+function addTapOverlay(map){
+  if (!map || !tapN || map.querySelector('.tapov')) return;
+  const ov = document.createElement('div'); ov.className = 'tapov'; map.appendChild(ov);
+  ov.onclick = e => {
+    if (!tapN || !draft) return;
+    const r = map.getBoundingClientRect();
+    const sn = snapPoint(map, (e.clientX - r.left) / r.width * 100, (e.clientY - r.top) / r.height * 100, tapN, -1);
+    const c = v => Math.round(Math.max(1, Math.min(99, v)) * 10) / 10;
+    tapStack.push({ n: tapN, p: { ...draft.tents[tapN] } });
+    draft.tents[tapN] = { x: c(sn.x), y: c(sn.y) };
+    applyDraftStyles(map); showGuides(map, sn.gx, sn.gy); setTimeout(() => showGuides(map, null, null), 500);
+    const el = map.querySelector(`.pt[data-n="${tapN}"]`); if (el){ el.classList.add('justset'); setTimeout(() => el.classList.remove('justset'), 600); }
+    tapN++; if (tapN > draft.count) endTap(true); else drawTapBar();
+  };
+}
+function drawTapBar(){
+  let bar = $('#tapbar');
+  if (!bar){ bar = document.createElement('div'); bar.id = 'tapbar'; document.body.appendChild(bar); }
+  bar.innerHTML = `<div>👆 اضغط على الكروكي وين تبي <b>⛺ خيمة ${tapN}</b></div>
+    <div class="row" style="gap:6px;margin-top:6px"><button class="mini" id="tapUndo" ${tapStack.length ? '' : 'disabled'}>↩️ رجّع آخر وحدة</button><button class="mini" id="tapSkip">⏭️ اتركها مكانها</button><button class="btn" id="tapDone">✅ خلصت</button></div>`;
+  $('#tapUndo').onclick = () => { const u = tapStack.pop(); if (!u) return; draft.tents[u.n] = u.p; tapN = u.n; applyDraftStyles($('#map')); drawTapBar(); };
+  $('#tapSkip').onclick = () => { tapN++; if (tapN > draft.count) endTap(true); else drawTapBar(); };
+  $('#tapDone').onclick = () => endTap(false);
+}
+function endTap(all){
+  const n = tapStack.length; tapN = 0; tapStack = [];
+  const bar = $('#tapbar'); if (bar) bar.remove();
+  const ov = document.querySelector('#map .tapov'); if (ov) ov.remove();
+  if (n) toast('soon', all ? '✅ رتّبت كل الخيام' : `✅ رتّبت ${n} خيمة`, 'لا تنسى تضغط 💾 حفظ', null, 4000);
 }
 // 🧲 المغناطيس: يلصق على صف/عمود الخيام القريبة، وإلا على نقاط الشبكة (كل 11 بكسل)
 const GRID = 11, SNAP_PX = 10;
@@ -918,7 +932,7 @@ function startEdit(){
   draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10 })) };
   editing = true; render();
 }
-function stopEdit(){ editing = false; draft = null; dragging = false; render(); }
+function stopEdit(){ if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
 function renderEditbar(){
   const eb = $('#editbar');
   if (!editing){ eb.innerHTML = ''; return; }
@@ -927,17 +941,12 @@ function renderEditbar(){
     <div class="seg" style="margin-bottom:8px"><button data-em="tents" class="${editMode === 'tents' ? 'on' : ''}">⛺ تحريك الخيام</button><button data-em="draw" class="${editMode === 'draw' ? 'on' : ''}">🖌️ الرسم</button></div>
     <label class="mag"><input type="checkbox" id="magnet" ${magnet ? 'checked' : ''}> 🧲 مغناطيس <small>(يلصق الخيام على نفس الصف والعمود، ويرتّب الرسم على الشبكة)</small></label>
     <div class="lineup">
-      <b>🚩 رصّ الخيام ورا بعض</b>
-      <small>حط أول خيمة بمكانها، بعدين اختار من خيمة لين خيمة واضغط الاتجاه، والباقي يترصّون وراها بمسافات متساوية</small>
-      <div class="row" style="align-items:center;gap:6px;margin-top:6px">
-        <span>من</span><input type="number" id="luFrom" inputmode="numeric" min="1" value="1">
-        <span>لين</span><input type="number" id="luTo" inputmode="numeric" min="1" value="10">
+      <b>👆 رتّب بالضغط</b>
+      <small>اضغط الزر، بعدين اضغط على الكروكي وين تبي خيمة 1، بعدين وين تبي خيمة 2، وهكذا… كل ضغطة تحط الخيمة اللي بعدها</small>
+      <div class="row" style="align-items:center;gap:6px;margin-top:8px">
+        <span>ابدأ من خيمة</span><input type="number" id="tapStart" inputmode="numeric" min="1" value="1">
+        <button class="btn" id="tapGo" style="flex:1">👆 ابدأ</button>
       </div>
-      <div class="row" style="gap:6px;margin-top:6px">
-        <button class="mini" data-lu="left">⬅️ صف لليسار</button><button class="mini" data-lu="right">➡️ صف لليمين</button>
-        <button class="mini" data-lu="down">⬇️ عمود لتحت</button><button class="mini" data-lu="up">⬆️ عمود لفوق</button>
-      </div>
-      <div class="row" style="align-items:center;gap:6px;margin-top:6px"><span>المسافة بينهم</span><button class="mini" id="luLess">➖</button><b id="luGap"></b><button class="mini" id="luMore">➕</button></div>
     </div>
     <p id="emHelp"></p>
     <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">📏 طول الكروكي</b><button class="mini" id="mapShorter">➖ أقصر</button><button class="mini" id="mapTaller">➕ أطول</button></div>
@@ -954,11 +963,10 @@ function renderEditbar(){
     const mp = $('#map'); if (mp){ mp.classList.toggle('mode-tents', m === 'tents'); mp.classList.toggle('mode-draw', m === 'draw'); } };
   $('#editbar').querySelectorAll('[data-em]').forEach(b => b.onclick = () => setEM(b.dataset.em));
   setEM(editMode);
-  const gapTxt = () => $('#luGap').textContent = ['ملاصقة','قريبة','عادية','واسعة','واسعة جداً'][luGap];
-  gapTxt();
-  $('#luLess').onclick = () => { luGap = Math.max(0, luGap - 1); gapTxt(); };
-  $('#luMore').onclick = () => { luGap = Math.min(4, luGap + 1); gapTxt(); };
-  eb.querySelectorAll('[data-lu]').forEach(b => b.onclick = () => lineUp(b.dataset.lu));
+  $('#tapGo').onclick = () => { const n = parseInt($('#tapStart').value, 10);
+    if (!n || n < 1 || n > draft.count){ toast('over', 'اكتب رقم خيمة من 1 لين ' + draft.count, '', null, 4000); return; }
+    tapStack = []; tapN = n; setEM('tents'); addTapOverlay($('#map')); drawTapBar();
+    $('#map').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   $('#magnet').onchange = e => { magnet = e.target.checked; try { localStorage.setItem('magnet', magnet ? '1' : '0'); } catch(_){} };
   // تطويل الكروكي يضيف مساحة فاضية تحت، والخيام والرسم يظلون بأماكنهم
   resizeMap = nr => { scaleDraftH(nr); roundDraft(); render(); };
