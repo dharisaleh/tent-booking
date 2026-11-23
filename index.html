@@ -349,6 +349,11 @@ header h1{display:flex;align-items:center;gap:8px}
 <div class="back" id="back"><div class="sheet" id="sheet"></div></div>
 
 <script>
+
+// الأرقام دايماً إنجليزي: أي رقم عربي ينكتب يتحول على طول
+document.addEventListener('input', e => { const el = e.target; if (!el || !('value' in el) || typeof el.value !== 'string') return;
+  const v = el.value.replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x0660).replace(/[\u06F0-\u06F9]/g, d => d.charCodeAt(0) - 0x06F0);
+  if (v !== el.value){ const p = el.selectionStart; el.value = v; try { el.setSelectionRange(p, p); } catch(_){} } }, true);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const z = n => String(n).padStart(2,'0');
