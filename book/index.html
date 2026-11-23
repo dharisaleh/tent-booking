@@ -91,6 +91,8 @@ textarea.f{min-height:60px;resize:vertical}
 @media (prefers-reduced-motion:reduce){.area.sea{animation:none}}
 .area.sea span{background:rgba(255,255,255,.9);color:#17639a;border-radius:999px;padding:2px 10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.12)}
 .area.path{background:repeating-linear-gradient(45deg,#e6dccb 0 10px,#dacdb6 10px 20px);border:1px dashed #b9a88d}
+.area.grass{background-color:#7cbf5a;background-image:radial-gradient(circle at 20% 30%,rgba(255,255,255,.18) 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,rgba(30,90,30,.25) 0 2px,transparent 3px),repeating-linear-gradient(100deg,#86c763 0 6px,#74b552 6px 12px);background-size:18px 18px,22px 22px,100% 100%;border:2px solid #5d9a3f}
+.area.grass span{background:rgba(255,255,255,.9);color:#3d7a26;border-radius:999px;padding:2px 10px;font-weight:800}
 .area.entry{background:#7a5332;border:2px solid #5b3c22}
 .area.entry span{background:transparent;color:#fff}
 .area.cashier{background:linear-gradient(180deg,#a8774a,#7b5130);border:2px solid #4e321c;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
@@ -177,7 +179,7 @@ function layoutOf(c){
   return { tents, marks: Array.isArray(L.marks) ? L.marks : [], areas: Array.isArray(L.areas) ? L.areas : [], ratio: Number(L.ratio) > 0 ? Number(L.ratio) : 0, tsize: Number(L.tsize) > 0 ? Number(L.tsize) : 1, wratio: Number(L.wratio) >= 1 ? Number(L.wratio) : 1 };
 }
 const SQ = { entry: 1, cashier: 1 };
-const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', entry: '🚪 مدخل', cashier: '💵 كاشير' };
+const AREA_T = { sea: '🌊 بحر', path: '🚶 ممر', grass: '🌿 زرع', entry: '🚪 مدخل', cashier: '💵 كاشير' };
 function areasHtml(areas){
   return (areas || []).map(a => { const k = AREA_T[a.k] ? a.k : 'path';
     return `<div class="area ${k} ${SQ[k] ? 'sq' : a.r == null && (+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%">${SQ[k] ? `<span class="sqt"${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}><big>${AREA_T[k].split(' ')[0]}</big><em>${AREA_T[k].split(' ')[1]}</em></span>` : `<span${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}>${AREA_T[k]}</span>`}</div>`; }).join('');

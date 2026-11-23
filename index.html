@@ -198,6 +198,8 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 @media (prefers-reduced-motion:reduce){.area.sea{animation:none}}
 .area.sea span{background:rgba(255,255,255,.9);color:#17639a;border-radius:999px;padding:2px 10px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.12)}
 .area.path{background:repeating-linear-gradient(45deg,#e6dccb 0 10px,#dacdb6 10px 20px);border:1px dashed #b9a88d}
+.area.grass{background-color:#7cbf5a;background-image:radial-gradient(circle at 20% 30%,rgba(255,255,255,.18) 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,rgba(30,90,30,.25) 0 2px,transparent 3px),repeating-linear-gradient(100deg,#86c763 0 6px,#74b552 6px 12px);background-size:18px 18px,22px 22px,100% 100%;border:2px solid #5d9a3f}
+.area.grass span{background:rgba(255,255,255,.9);color:#3d7a26;border-radius:999px;padding:2px 10px;font-weight:800}
 .area.entry{background:#7a5332;border:2px solid #5b3c22}
 .area.entry span{background:transparent;color:#fff}
 .area.cashier{background:linear-gradient(180deg,#a8774a,#7b5130);border:2px solid #4e321c;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
@@ -751,7 +753,7 @@ function layoutOf(cafe){
 }
 
 /* مناطق الكروكي: بحر، ممر، مدخل */
-const AREA = { sea: { t: '🌊 بحر', w: 100, h: 12, x: 0, y: 0 }, path: { t: '🚶 ممر', w: 12, h: 60, x: 44, y: 20 }, entry: { t: '🚪 مدخل', w: 22, h: 6, x: 39, y: 92 }, cashier: { t: '💵 كاشير', w: 20, h: 7, x: 40, y: 45 } };
+const AREA = { sea: { t: '🌊 بحر', w: 100, h: 12, x: 0, y: 0 }, path: { t: '🚶 ممر', w: 12, h: 60, x: 44, y: 20 }, grass: { t: '🌿 زرع', w: 12, h: 40, x: 4, y: 30 }, entry: { t: '🚪 مدخل', w: 22, h: 6, x: 39, y: 92 }, cashier: { t: '💵 كاشير', w: 20, h: 7, x: 40, y: 45 } };
 const SQ = { entry: 1, cashier: 1 };   // المدخل والكاشير مربعات
 const clampA = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)) * 10) / 10;
 function areasHtml(areas, edit){
@@ -1147,7 +1149,7 @@ function renderEditbar(){
     <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">📐 عرض الكروكي</b><button class="mini" id="mapNarrow">➖ أضيق</button><button class="mini" id="mapWide">➕ أعرض</button></div>
     <div class="row" style="align-items:center;gap:6px;margin-bottom:8px"><b style="flex:none">⛺ حجم الخيام <span id="tsz"></span></b><button class="mini" id="tSmaller">➖ أصغر</button><button class="mini" id="tBigger">➕ أكبر</button></div>
     <div class="row"><input class="f" id="markT" placeholder="اسم المكان: المدخل، الكاشير، الحمامات…" maxlength="30"><button class="mini" id="addMark" style="flex:none">➕ أضف مكان</button></div>
-    <div class="row" style="margin-top:8px;gap:6px"><button class="mini" data-add="sea">🌊 بحر</button><button class="mini" data-add="path">🚶 ممر</button><button class="mini" data-add="entry">🚪 مدخل</button><button class="mini" data-add="cashier">💵 كاشير</button></div>
+    <div class="row" style="margin-top:8px;gap:6px"><button class="mini" data-add="sea">🌊 بحر</button><button class="mini" data-add="path">🚶 ممر</button><button class="mini" data-add="grass">🌿 زرع</button><button class="mini" data-add="entry">🚪 مدخل</button><button class="mini" data-add="cashier">💵 كاشير</button></div>
 
     <div class="row" style="margin-top:8px;align-items:center"><b id="tcount" style="flex:none"></b><button class="mini" id="addTent">➕ أضف خيمة</button><button class="mini d" id="delTent">➖ إزالة خيمة</button></div>
     <div class="err" id="eerr"></div>
