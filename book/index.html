@@ -97,6 +97,25 @@ textarea.f{min-height:60px;resize:vertical}
 .mapwrap .map{max-width:none}
 footer{text-align:center;color:var(--mut);font-size:12px;margin-top:24px}
 footer a{color:var(--acc)}
+
+#tsheet{position:fixed;inset:0;z-index:100}
+#tsheet .shbg{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+#tsheet .shbox{position:absolute;left:0;right:0;bottom:0;max-height:92vh;overflow:auto;background:#fff;border-radius:22px 22px 0 0;padding:18px 16px 22px;animation:shup .22s ease-out}
+@keyframes shup{from{transform:translateY(40%);opacity:.4}to{transform:none;opacity:1}}
+#tsheet .shx{position:absolute;top:12px;left:12px;border:0;background:#f1f1f1;border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer}
+#tsheet h3{text-align:center;margin:6px 0 8px;font-size:19px}
+.bigtent{position:relative;width:120px;margin:0 auto;color:var(--ok);display:flex;justify-content:center;animation:pop .3s ease-out}
+.bigtent svg{width:120px;height:94px;filter:drop-shadow(0 4px 6px rgba(0,0,0,.2))}
+.bigtent svg .roof{fill:currentColor}.bigtent svg .door{fill:rgba(255,255,255,.55)}
+.bigtent b{position:absolute;top:28px;font-size:30px;color:#fff;font-weight:800;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+@keyframes pop{from{transform:scale(.4)}to{transform:scale(1)}}
+.hours{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.hr{border:2px solid #bfe6cd;background:var(--okbg);color:var(--ok);border-radius:12px;padding:8px 4px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;font-family:inherit}
+.hr b{font-size:20px;line-height:1}.hr small{font-size:12px}.hr i{font-style:normal;font-size:11px;font-weight:700}
+.hr.bk{background:#eceef1;border-color:#e1e4e8;color:#9aa1a9;cursor:not-allowed}
+.hr.past{background:#fafafa;border-color:#eee;color:#c5c5c5;cursor:not-allowed}
+.hr.on{background:var(--acc);border-color:var(--acc);color:#fff}
+#shOk{margin-top:14px;width:100%}
 </style>
 </head>
 <body>
@@ -180,6 +199,48 @@ function tentTimes(t){
   if (cur < c.close) free.push([cur, c.close]);
   return { bk, free: free.filter(([a, b]) => b - a >= 1) };
 }
+// 🔍 تكبير الخيمة: يبين ساعاتها، والزبون يختار البداية والنهاية من الساعات الفاضية
+let pick = null;
+function openTent(t){
+  const c = cafe(), from = firstHour(c);
+  pick = { t, a: null, b: null };
+  if (!busy(t, S.start, S.end)){ pick.a = S.start; pick.b = S.end; }
+  drawSheet();
+}
+function hourFree(h){ const c = cafe(); return h >= firstHour(c) && h < c.close && !busy(pick.t, h, h + 1); }
+function drawSheet(){
+  const c = cafe(); let sh = $('#tsheet');
+  if (!sh){ sh = document.createElement('div'); sh.id = 'tsheet'; document.body.appendChild(sh); }
+  const hrs = [];
+  for (let h = c.open; h < c.close; h++){
+    const past = h < firstHour(c), bk = busy(pick.t, h, h + 1), on = pick.a != null && h >= pick.a && h < pick.b;
+    hrs.push(`<button class="hr ${bk ? 'bk' : past ? 'past' : 'fr'} ${on ? 'on' : ''}" data-h="${h}" ${bk || past ? 'disabled' : ''}><b>${hl(h).split(' ')[0]}</b><small>${hl(h).split(' ')[1]}</small><i>${bk ? 'محجوزة' : past ? 'فات' : on ? 'اختيارك' : 'فاضية'}</i></button>`);
+  }
+  const n = pick.a != null ? pick.b - pick.a : 0;
+  sh.innerHTML = `<div class="shbg" data-close></div><div class="shbox">
+    <button class="shx" data-close>✕</button>
+    <div class="bigtent">${tentSvg}<b>${pick.t}</b></div>
+    <h3>خيمة ${pick.t} · ${esc(c.name)}</h3>
+    <div class="legend" style="justify-content:center"><span style="--c:var(--ok)">فاضية</span><span style="--c:#c9cdd2">محجوزة</span><span style="--c:var(--acc)">اختيارك</span></div>
+    <div class="note" style="text-align:center;margin:4px 0 10px">${pick.a == null ? 'اضغط على الساعة اللي تبي تبدأ فيها 👇' : 'تبي وقت أطول؟ اضغط على آخر ساعة تبيها'}</div>
+    <div class="hours">${hrs.join('')}</div>
+    ${n ? `<div class="sum" style="text-align:center;margin-top:12px">من <b>${hl(pick.a)}</b> لين <b>${hl(pick.b)}</b> · ${hrsL(n)} · <b>${money(n * Number(c.price))}</b></div>` : ''}
+    <button class="btn" id="shOk" ${n ? '' : 'disabled'}>✅ احجز هالخيمة</button></div>`;
+  sh.querySelectorAll('[data-close]').forEach(x => x.onclick = closeSheet);
+  sh.querySelectorAll('.hr[data-h]').forEach(x => x.onclick = () => {
+    const h = Number(x.dataset.h);
+    if (pick.a != null && h >= pick.a && h < pick.b && pick.b - pick.a > 1 && h === pick.b - 1){ pick.b = h; }       // يقصّر من آخر
+    else if (pick.a != null && h >= pick.b && h - pick.a < 8){                                                          // يمدّ لين هالساعة لو كلها فاضية
+      let ok = true; for (let k = pick.b; k <= h; k++) if (!hourFree(k)) ok = false;
+      if (ok) pick.b = h + 1; else { pick.a = h; pick.b = h + 1; }
+    } else { pick.a = h; pick.b = h + 1; }
+    drawSheet();
+  });
+  $('#shOk').onclick = () => { S.tent = pick.t; S.start = pick.a; S.end = pick.b; closeSheet(); draw();
+    const f = $('#bf'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  document.body.style.overflow = 'hidden';
+}
+function closeSheet(){ const sh = $('#tsheet'); if (sh) sh.remove(); pick = null; document.body.style.overflow = ''; }
 function infoHtml(){
   const t = S.info; if (!t) return '';
   const { bk, free } = tentTimes(t);
@@ -220,9 +281,9 @@ function draw(){
     ${closed ? '' : `<div class="card"><h2><i>4</i>اختار خيمة <small style="color:var(--mut);font-weight:500;font-size:13px">(${free} فاضية بهالوقت)</small></h2>
       <div class="vt"><button class="${tView === 'map' ? 'on' : ''}" data-v="map">🗺️ الكروكي</button><button class="${tView === 'grid' ? 'on' : ''}" data-v="grid">🔢 الأرقام</button></div>
       <div class="legend"><span style="--c:var(--ok);">فاضية</span><span style="--c:#c9cdd2">محجوزة بهالوقت</span><span style="--c:var(--acc)">اختيارك</span></div>
-      <div class="note" style="margin:-4px 0 8px">💡 الخيمة الرمادية محجوزة بالوقت اللي اخترته بس، اضغط عليها تشوف أوقاتها الفاضية</div>
+      <div class="note" style="margin:-4px 0 8px">💡 اضغط على أي خيمة تكبر وتشوف ساعاتها المحجوزة والفاضية، وتختار وقتك منها</div>
       ${tView === 'map' ? mapHtml(c) + '<div class="note">اضغط على خيمة خضرا عشان تختارها</div>' : `<div class="tents">${tg}</div>`}
-      ${infoHtml()}
+
       ${free ? '' : '<div class="err">ما فيه خيام فاضية بهالوقت، جرب وقت أو يوم ثاني.</div>'}</div>
     <div class="card"><h2><i>5</i>بياناتك</h2>
       <form id="bf">
@@ -246,7 +307,7 @@ function draw(){
     const f = $('#bf'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
   $('#main').querySelectorAll('[data-ix]').forEach(b => b.onclick = () => { S.info = null; draw(); });
   $('#main').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { const tn = Number(b.dataset.t);
-    if (busy(tn, S.start, S.end)){ S.info = S.info === tn ? null : tn; } else { S.tent = tn; S.info = null; } const y = window.scrollY, w = document.querySelector('.mapwrap'), sl = w ? w.scrollLeft : 0, st = w ? w.scrollTop : 0; draw(); window.scrollTo(0, y); const w2 = document.querySelector('.mapwrap'); if (w2){ w2.scrollLeft = sl; w2.scrollTop = st; } });
+    openTent(tn); return; const y = window.scrollY, w = document.querySelector('.mapwrap'), sl = w ? w.scrollLeft : 0, st = w ? w.scrollTop : 0; draw(); window.scrollTo(0, y); const w2 = document.querySelector('.mapwrap'); if (w2){ w2.scrollLeft = sl; w2.scrollTop = st; } });
   const st = $('#st'), en = $('#en');
   if (st) st.onchange = () => { S.start = Number(st.value); if (S.end <= S.start || S.end - S.start > 8) S.end = Math.min(cafe().close, S.start + 2); keepTent(); draw(); };
   if (en) en.onchange = () => { S.end = Number(en.value); keepTent(); draw(); };
