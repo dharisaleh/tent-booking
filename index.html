@@ -182,10 +182,14 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .authbox h1{margin:4px 0 6px;font-size:24px}
 .authbox form{text-align:right}
 [hidden]{display:none!important}
-.area.sq{height:auto!important;aspect-ratio:1/1}
-.area .sqt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1;text-align:center}
-.area .sqt big{font-size:1.5em}
-.area .sqt em{font-style:normal;font-weight:800;font-size:1.05em;background:rgba(255,255,255,.92);color:#3b2a1a;border-radius:6px;padding:1px 6px}
+.area.sq{height:auto!important;aspect-ratio:1/1;container-type:inline-size;border-radius:8px}
+.area .sqt{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1;text-align:center;padding:0!important}
+.area .sqt big{font-size:34cqw}
+.area .sqt em{font-style:normal;font-weight:800;font-size:clamp(7px,24cqw,16px);background:rgba(255,255,255,.92);color:#3b2a1a;border-radius:4px;padding:1px 3px;white-space:nowrap}
+.area.sq i{width:16px;height:16px;font-size:11px;top:-6px}
+.area.sq i[data-ax]{inset-inline-start:-6px}.area.sq i.rot{inset-inline-end:-6px}
+.area.sq .rs{width:14px;height:14px}
+.area.sq{overflow:visible}
 .area{position:absolute;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;overflow:hidden;user-select:none;-webkit-user-select:none}
 .area.tall span{writing-mode:vertical-rl;padding:8px 2px}
 .area span{transition:transform .2s;background:rgba(255,255,255,.75);border-radius:8px;padding:2px 8px;white-space:nowrap;color:#3b2f25}
@@ -741,7 +745,7 @@ const SQ = { entry: 1, cashier: 1 };   // المدخل والكاشير مربع
 const clampA = (v, lo, hi) => Math.round(Math.max(lo, Math.min(hi, v)) * 10) / 10;
 function areasHtml(areas, edit){
   return (areas || []).map((a, i) => { const k = AREA[a.k] ? a.k : 'path';
-    return `<div class="area ${k} ${SQ[k] ? 'sq' : a.r == null && (+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" data-a="${i}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%">${SQ[k] ? `<span class="sqt"><big>${AREA[k].t.split(' ')[0]}</big><em>${AREA[k].t.split(' ')[1]}</em></span>` : `<span${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}>${AREA[k].t}</span>`}${edit ? `<i data-ax="${i}">×</i>${SQ[k] ? '' : `<i class="rot" data-rot="${i}" title="تدوير">⟳</i>`}<b class="rs" data-rs="${i}"></b>` : ''}</div>`; }).join('');
+    return `<div class="area ${k} ${SQ[k] ? 'sq' : a.r == null && (+a.h||10) > (+a.w||10) * 1.4 ? 'tall' : ''}" data-a="${i}" style="left:${Number(a.x)||0}%;top:${Number(a.y)||0}%;width:${Number(a.w)||10}%;height:${Number(a.h)||10}%">${SQ[k] ? `<span class="sqt"${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}><big>${AREA[k].t.split(' ')[0]}</big><em>${AREA[k].t.split(' ')[1]}</em></span>` : `<span${+a.r ? ` style="transform:rotate(${+a.r}deg)"` : ''}>${AREA[k].t}</span>`}${edit ? `<i data-ax="${i}">×</i><i class="rot" data-rot="${i}" title="تدوير">⟳</i><b class="rs" data-rs="${i}"></b>` : ''}</div>`; }).join('');
 }
 const tentSvg = '<svg viewBox="0 0 46 36"><path class="roof" d="M23 2 L44 34 H2 Z"/><path class="door" d="M23 14 L30 34 H16 Z"/></svg>';
 
@@ -961,6 +965,7 @@ function bindDrag(map){
     const nw = Math.min(100, a.h / 100 * H / W * 100), nh = Math.min(100, a.w / 100 * W / H * 100);
     const r1 = v => Math.round(v * 10) / 10;
     a.r = ((+a.r || 0) + 90) % 360;
+    if (SQ[a.k]){ render(); return; }   // المربع: بس نلف اللي داخله
     a.w = r1(nw); a.h = r1(nh); a.x = r1(Math.max(0, Math.min(100 - nw, cx - nw / 2))); a.y = r1(Math.max(0, Math.min(100 - nh, cy - nh / 2)));
     render(); });
   map.querySelectorAll('[data-ax]').forEach(x => x.onpointerdown = e => { e.stopPropagation(); e.preventDefault(); draft.areas.splice(Number(x.dataset.ax), 1); render(); });
@@ -1060,7 +1065,7 @@ function startEdit(){
   for (let n = 1; n <= total; n++){ const p = L.tents[n] || defaultPos(n, total); tents[n] = { x: p.x, y: p.y }; }
   draft = { wratio: L.wratio || 1, tsize: L.tsize || 1, ratio: L.ratio || lastRatio, count: total, tents, marks: L.marks.map(m => ({ t: String(m.t || ''), x: Number(m.x) || 50, y: Number(m.y) || 50 })), areas: (L.areas || []).map(a => ({ k: a.k, x: +a.x || 0, y: +a.y || 0, w: +a.w || 10, h: +a.h || 10, ...(a.r != null ? { r: +a.r || 0 } : {}) })), groups: (L.groups || []).map(g => g.slice()) };
   editing = true; hist = []; render(); showUndo(true);
-  { const mp = $('#map'); if (mp){ const W = mp.offsetWidth, H = mp.offsetHeight; draft.areas.forEach(a => { if (SQ[a.k]) a.h = clampA(a.w / 100 * W / H * 100, 1, 100); }); } }
+  { const mp = $('#map'); if (mp){ const W = mp.offsetWidth, H = mp.offsetHeight; draft.areas.forEach(a => { if (!SQ[a.k]) return; if (a.w / 100 * W > 60){ const cx = a.x + a.w / 2, cy = a.y + a.h / 2; a.w = clampA(44 / W * 100, 3, 100); a.h = 44 / H * 100; a.x = clampA(cx - a.w / 2, 0, 100 - a.w); a.y = clampA(cy - a.h / 2, 0, 100 - a.h); } a.h = clampA(a.w / 100 * W / H * 100, 1, 100); }); } }
 }
 function stopEdit(){ cols = []; hist = []; showUndo(false); if (tapN) endTap(false); editing = false; draft = null; dragging = false; render(); }
 function renderEditbar(){
@@ -1149,7 +1154,7 @@ function renderEditbar(){
   $('#mapShorter').onclick = () => resizeMap(Math.max(0.6, Math.round((draft.ratio - 0.25) * 100) / 100));
   $('#editbar').querySelectorAll('[data-add]').forEach(b => b.onclick = () => {
     const k = b.dataset.add, d = AREA[k];
-    if (SQ[k]){ const mp = $('#map'), W = mp.offsetWidth, H = mp.offsetHeight, px = Math.min(80, W * .22), w = px / W * 100, h = px / H * 100;
+    if (SQ[k]){ const mp = $('#map'), W = mp.offsetWidth, H = mp.offsetHeight, px = 44, w = px / W * 100, h = px / H * 100;
       draft.areas.push({ k, x: clampA(50 - w / 2, 0, 100), y: clampA((k === 'entry' ? 96 : 50) - h, 0, 100 - h), w: clampA(w, 3, 100), h: clampA(h, 2, 100) }); }
     else draft.areas.push({ k, x: d.x, y: d.y, w: d.w, h: d.h });
     setEM('draw'); render();
