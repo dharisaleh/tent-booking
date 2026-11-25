@@ -184,7 +184,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .tent .strip i{height:16px;font-size:10px;line-height:16px;border-radius:3px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stat{flex-wrap:nowrap;gap:6px;min-width:0}
-.stat.y,.stat.o{grid-column:1/-1}
+.stat.y,.stat.o,.hsum{grid-column:1/-1}
 #auth{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
 .authbox{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:24px;width:100%;max-width:380px;text-align:center}
 .authbox h1{margin:4px 0 6px;font-size:24px}
@@ -271,6 +271,11 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .tone span{flex:1;font-weight:700}.tone.on{border-color:var(--bk);background:var(--bkbg)}
 .tone.on span::after{content:' ✓';color:var(--bk)}
 .tone .mini{padding:6px 8px;font-size:12px}
+.hsum{flex-basis:100%;box-sizing:border-box;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px;text-align:center}
+.hrow{display:flex;justify-content:space-around;gap:6px}.hrow div{display:flex;flex-direction:column;align-items:center;gap:2px}
+.hrow small{font-size:12px;color:var(--mut);font-weight:700}.hrow b{font-size:24px;line-height:1.1}.hrow .ok b{color:var(--bk)}
+.hprog{height:8px;background:var(--freebg2);border-radius:99px;overflow:hidden;margin-top:10px}.hprog i{display:block;height:100%;background:var(--bk);border-radius:99px}
+.hpct{font-size:12px;color:var(--mut);margin-top:4px}
 .stat.m{flex-wrap:wrap}.stat .rh{flex-basis:100%;font-style:normal;font-weight:800;font-size:13px;background:rgba(255,255,255,.7);border-radius:8px;padding:3px 6px;margin-top:6px;text-align:center}
 #bell.on{background:var(--soonbg);border-color:var(--soon)}
 #bell.need{animation:pulse 1.2s infinite;border-color:var(--over)}
@@ -489,7 +494,10 @@ function render(){
   const when = live ? 'الحين' : 'الساعة ' + hl(H);
   stats.innerHTML = `<div class="stat f"><span>فاضية<br><small>${when}</small></span><b>${cnt.free}</b></div>
     <div class="stat b"><span>محجوزة<br><small>${when}</small></span><b>${cnt.busy + cnt.soon}</b></div>
-    <button class="stat m" id="cashBtn" style="border:0;cursor:pointer;font:inherit;text-align:right"><span>💰 الصندوق<br><small>انقبض ${money(collected)}</small></span><b style="font-size:16px">${money(income)}</b><em class="rh">⏱️ ${rentH ? hrsL(rentH) : '0 ساعة'} تأجير</em></button>
+    <button class="stat m" id="cashBtn" style="border:0;cursor:pointer;font:inherit;text-align:right"><span>💰 الصندوق<br><small>انقبض ${money(collected)}</small></span><b style="font-size:16px">${money(income)}</b></button>
+    ${(() => { const tot = total * Math.max(0, C.close - C.open), rest = Math.max(0, tot - rentH), pct = tot ? Math.min(100, rentH / tot * 100) : 0, f = x => Math.round(x * 10) / 10;
+      return `<div class="hsum"><div class="hrow"><div><small>⏱️ إجمالي الساعات</small><b>${f(tot)}</b></div><div class="ok"><small>✅ تأجرت</small><b>${f(rentH)}</b></div><div><small>⏳ الباقي</small><b>${f(rest)}</b></div></div>
+        <div class="hprog"><i style="width:${pct}%"></i></div><div class="hpct">${Math.round(pct)}% من ساعات اليوم تأجرت</div></div>`; })()}
     ${cnt.soon ? `<div class="stat y"><span>⏳ قرب يخلص وقتها</span><b>${cnt.soon}</b></div>` : ''}
     ${cnt.over ? `<div class="stat o"><span>⏰ خلص وقتها</span><b>${cnt.over}</b></div>` : ''}`;
   let hc = '';
