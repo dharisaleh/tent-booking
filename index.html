@@ -682,12 +682,12 @@ function openBook(cafe, n, existing){
   if (!canBook(cafe)) return;
   const C = cfg(cafe), b = existing || {};
   // الوقت يعبيه الموظف بنفسه؛ بالتعديل يطلع الوقت الحالي للحجز
-  const sv = existing ? toHM(bStart(b, cafe)) : '', ev = existing ? toHM(bEnd(b, cafe)) : '';
+  const sv = existing ? toHM(bStart(b, cafe)) : '', curDur = existing ? Math.round((bEnd(b, cafe) - bStart(b, cafe)) * 60) : 0;
   openSheet(`<h2>${existing ? 'تعديل حجز' : 'حجز'} خيمة ${n}</h2>
     <div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
     <form id="bf">
       <div class="row"><div><label>من الساعة *</label><input class="f" name="start" type="time" step="60" value="${sv}" required dir="ltr"></div>
-        <div><label>لين الساعة *</label><input class="f" name="end" type="time" step="60" value="${ev}" required dir="ltr"></div></div>
+        <div><label>المدة *</label><select class="f" name="dur" required></select></div></div>
       <div class="endline" id="endl"></div>
       <div class="price" id="pr"></div>
       <label>اسم الزبون *</label><input class="f" name="name" required maxlength="80" value="${esc(b.name)}">
@@ -698,9 +698,24 @@ function openBook(cafe, n, existing){
       <div class="actions"><button class="btn green" type="submit">✅ ${existing ? 'حفظ' : 'تأكيد الحجز'}</button><button class="btn ghost" type="button" id="cx">رجوع</button></div>
     </form>`);
   const form = $('#bf');
-  const read = () => { const s = fromHM(form.start.value, C); let e = fromHM(form.end.value, C); if (Number.isFinite(s) && Number.isFinite(e) && e <= s && e + 24 <= C.close + 1e-9) e += 24; return [s, e]; };
+  // المدة: ساعة، ساعتين... أو لين نهاية الدوام (تتحدث حسب وقت البداية)
+  const durOpts = () => {
+    const s = fromHM(form.start.value, C), keep = form.dur.value || (curDur ? String(curDur) : '');
+    let o = '<option value="">اختار المدة</option>';
+    if (Number.isFinite(s) && s >= C.open - 1e-9 && s < C.close){
+      const max = Math.round((C.close - s) * 60);
+      for (let m = 60; m < max; m += 60) o += `<option value="${m}">${hrsL(m / 60)}</option>`;
+      if (curDur && curDur < max && curDur % 60) o += `<option value="${curDur}">${hrsL(curDur / 60)} (الحالية)</option>`;
+      o += `<option value="close">⏰ لين نهاية الدوام (${hl(C.close)})</option>`;
+    }
+    form.dur.innerHTML = o;
+    if (keep && [...form.dur.options].some(x => x.value === keep)) form.dur.value = keep;
+    else if (curDur && Number.isFinite(s) && Math.abs(s + curDur / 60 - C.close) < 1e-6) form.dur.value = 'close';
+  };
+  const read = () => { const s = fromHM(form.start.value, C), d = form.dur.value;
+    const e = d === 'close' ? C.close : d ? s + Number(d) / 60 : NaN; return [s, e]; };
   const check = (s, e) => {
-    if (!Number.isFinite(s) || !Number.isFinite(e)) return 'اكتب وقت البداية والنهاية';
+    if (!Number.isFinite(s)) return 'اكتب وقت البداية'; if (!Number.isFinite(e)) return 'اختار المدة';
     if (s < C.open - 1e-9 || s >= C.close) return `البداية لازم بين ${hl(C.open)} و ${hl(C.close)}`;
     if (e <= s) return 'وقت النهاية لازم بعد البداية';
     if (e > C.close + 1e-9) return `النهاية لازم قبل السكير (${hl(C.close)})`;
@@ -710,14 +725,14 @@ function openBook(cafe, n, existing){
   };
   const upd = () => {
     const [s, e] = read(); $('#ferr').textContent = '';
-    const bad = form.start.value && form.end.value ? check(s, e) : '';
-    if (!form.start.value || !form.end.value){ $('#endl').textContent = ''; $('#pr').innerHTML = ''; return; }
+    if (!form.start.value || !form.dur.value){ $('#endl').textContent = ''; $('#pr').innerHTML = ''; return; }
+    const bad = check(s, e);
     if (bad){ $('#endl').textContent = ''; $('#pr').innerHTML = `<span style="color:var(--busy)">${bad}</span>`; return; }
     const hrs = e - s;
     $('#endl').innerHTML = `⏰ من <b>${hl(s)}</b> لين <b>${hl(e)}</b> · ${hrsL(hrs)}`;
     $('#pr').innerHTML = `<span>${hrsL(hrs)} · ${money(C.price)} للساعة</span><span>${money(Math.round(hrs * C.price * 1000) / 1000)}</span>`;
   };
-  form.start.oninput = upd; form.end.oninput = upd; upd();
+  form.start.oninput = () => { durOpts(); upd(); }; form.dur.onchange = upd; durOpts(); upd();
   $('#cx').onclick = () => openTent(cafe, n);
   form.onsubmit = async ev2 => {
     ev2.preventDefault();
