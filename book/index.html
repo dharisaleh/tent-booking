@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
 <title>احجز خيمتك · المقاهي الشعبية</title>
 <meta name="description" content="احجز خيمتك بالمقاهي الشعبية: الصليبخات، السالمية، الفروانية">
 <meta name="theme-color" content="#faf6ef">
@@ -42,7 +43,7 @@ textarea.f{min-height:60px;resize:vertical}
 .legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:5px;vertical-align:middle;background:var(--c)}
 .sum{background:var(--acc2);border-radius:14px;padding:12px;margin-top:12px;line-height:1.9}
 .sum b{color:var(--acc)}
-.btn{border:0;border-radius:14px;padding:14px;font-weight:800;cursor:pointer;background:var(--ok);color:#fff;width:100%;font-size:17px;margin-top:12px}
+.btn{display:block;text-decoration:none;text-align:center;box-sizing:border-box;border:0;border-radius:14px;padding:14px;font-weight:800;cursor:pointer;background:var(--ok);color:#fff;width:100%;font-size:17px;margin-top:12px}
 .btn:disabled{opacity:.5}
 .btn.ghost{background:var(--acc2);color:var(--acc)}
 .err{color:var(--bad);font-size:14px;margin-top:8px;min-height:1em;font-weight:700}
@@ -145,7 +146,8 @@ document.addEventListener('input', e => { const el = e.target; if (!el || !('val
   if (v !== el.value){ const p = el.selectionStart; el.value = v; try { el.setSelectionRange(p, p); } catch(_){} } }, true);
 const SB_URL = 'https://xpavokpljazifycuuoko.supabase.co';
 const SB_KEY = 'sb_publishable_vPWhIUSBGg3nQLrwoW8B1Q_Q3MsS1Jj';
-const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: false } });
+// نفس جلسة الموظفين: إذا الموظف داخل من الموقع الرئيسي، يقدر يفتح هالصفحة
+const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const z = n => String(n).padStart(2, '0');
@@ -264,6 +266,7 @@ function infoHtml(){
 async function load(date){
   const { data, error } = await sb.rpc('public_availability', { p_date: date || dstr(new Date()) });
   if (error) throw error;
+  if (data && data.closed){ const e = new Error('closed'); e.closed = true; throw e; }
   D = data; today = data.today; nowMin = data.now_min;
   return data;
 }
@@ -362,7 +365,8 @@ function setMine(v){ try { localStorage.setItem('myReq', JSON.stringify(v)); } c
 const normPh = p => String(p || '').replace(/\D/g, '').slice(-8);
 async function drawMine(){
   let mine = getMine(); const last = mine[0] ? normPh(mine[0].phone) : '';
-  if (mine.some(m => normPh(m.phone) !== last)){ mine = mine.filter(m => normPh(m.phone) === last); setMine(mine); } // بس حجوزات آخر رقم if (!mine.length){ $('#mineBox').innerHTML = ''; return; }
+  if (mine.some(m => normPh(m.phone) !== last)){ mine = mine.filter(m => normPh(m.phone) === last); setMine(mine); } // بس حجوزات آخر رقم
+  if (!mine.length){ $('#mineBox').innerHTML = ''; return; }
   const rows = await Promise.all(mine.map(m => sb.rpc('public_booking_status', { p_id: m.id, p_phone: m.phone }).then(r => ({ m, r: r.data || { status: 'gone' } })).catch(() => ({ m, r: null }))));
   const keep = rows.filter(x => x.r && x.r.status !== 'gone' && x.r.date >= today);
   const label = { pending: '⏳ قيد المراجعة', confirmed: '✅ محجوز', gone: '❌ ملغي' };
@@ -381,7 +385,10 @@ async function drawMine(){
     S.cafe = D.cafes[0].id; S.date = today; resetTime();
     const c = cafe(); if (firstHour(c) >= c.close - 0 && S.date === today){ S.date = shift(today, 1); await load(S.date); resetTime(); }
     draw(); drawMine();
-  } catch(_){ $('#main').innerHTML = '<div class="status">ما قدرنا نحمّل الصفحة، تأكد من النت وحدّث.</div>'; }
+  } catch(err){
+    if (err && err.closed){ $('#mineBox').innerHTML = '';
+      $('#main').innerHTML = '<div class="card" style="text-align:center;padding:28px 18px"><div style="font-size:44px">🔒</div><h2 style="margin:8px 0">هالصفحة للموظفين بس</h2><div class="note" style="margin-bottom:16px">سجّل دخولك من صفحة الموظفين، وبعدين ارجع لهالصفحة.</div><a class="btn" href="../">دخول الموظفين</a></div>'; return; }
+    $('#main').innerHTML = '<div class="status">ما قدرنا نحمّل الصفحة، تأكد من النت وحدّث.</div>'; }
 })();
 </script>
 </body>

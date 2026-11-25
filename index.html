@@ -135,6 +135,8 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .bk .m{color:var(--mut);font-size:13px;margin-top:4px;line-height:1.6}
 .bk .actions{margin-top:8px}
 .bk .actions .btn{padding:8px 10px;font-size:14px}
+.onl{display:flex;align-items:center;gap:10px;background:var(--bg2,#f6f1e7);border-radius:14px;padding:12px;margin:10px 0}
+.onl>div{flex:1;display:flex;flex-direction:column;gap:3px}.onl small{color:var(--mut);font-size:13px}
 .endline{margin:6px 0 2px;font-size:15px;color:var(--ink)}
 .price{background:var(--acc2);color:var(--acc);border-radius:12px;padding:10px 12px;margin-top:12px;display:flex;justify-content:space-between;font-weight:800}
 select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fffdf9;font-size:16px}
@@ -710,12 +712,20 @@ function openBook(cafe, n, existing, startH){
 
 /* ---------- settings ---------- */
 function hourOpts(from, to, sel){ let o = ''; for (let h = from; h <= to; h++) o += `<option value="${h}" ${h===sel?'selected':''}>${hl(h)}</option>`; return o; }
+async function drawOnline(){
+  const t = $('#onlTxt'), b = $('#onlBtn'); if (!t) return;
+  let open = false; try { open = !!(await q(sb.rpc('online_flag'))); } catch(_){ t.textContent = 'ما قدرنا نجيب الحالة'; return; }
+  t.innerHTML = open ? '🌍 مفتوحة للكل: أي أحد عنده الرابط يقدر يحجز' : '🔒 للموظفين بس: محد يشوفها إلا اللي داخل بحسابه';
+  b.disabled = false; b.textContent = open ? '🔒 خلها للموظفين بس' : '🌍 افتحها للكل';
+  b.onclick = async () => { b.disabled = true; try { await q(sb.rpc('set_online_booking', { p_open: !open })); } catch(err){ t.textContent = errText(err); } drawOnline(); };
+}
 function openSettings(){
   const list = cafes.map(c => { const C = cfg(c); return `<div class="cafeRow"><div><b>${esc(c.name)}</b><small>${tentsOf(c)} خيمة · ${money(C.price)}/ساعة · ${hl(C.open)}–${hl(C.close)} · ⏳ تذكير قبل ${C.soon} د</small><small class="mn">${esc(mgrNames(c))}</small></div>
       <button class="mini" data-e="${esc(c.id)}">تعديل</button><button class="mini d" data-d="${esc(c.id)}">حذف</button></div>`; }).join('')
       || '<div class="sub">ما في مقاهي للحين.</div>';
   openSheet(`${segHtml('cafes')}
     <h2>⚙️ إدارة المقاهي</h2><div class="sub">المقاهي، عدد الخيام، سعر الساعة وأوقات الدوام</div>
+    ${owner ? `<div class="onl" id="onlBox"><div><b>🌐 صفحة حجز الزباين</b><small id="onlTxt">…</small></div><button class="mini" id="onlBtn" disabled>…</button></div>` : ''}
     ${list}<hr>
     <form id="cf"><b id="cft">➕ إضافة مقهى</b>
       <input type="hidden" name="id">
@@ -730,6 +740,7 @@ function openSettings(){
     </form>`);
   $('#cx').onclick = closeSheet;
   bindSeg();
+  if (owner) drawOnline();
   const form = $('#cf');
   $('#sheet').querySelectorAll('[data-e]').forEach(b => b.onclick = () => {
     const c = cafes.find(x => x.id === b.dataset.e), C = cfg(c);
