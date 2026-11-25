@@ -271,6 +271,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .tone span{flex:1;font-weight:700}.tone.on{border-color:var(--bk);background:var(--bkbg)}
 .tone.on span::after{content:' ✓';color:var(--bk)}
 .tone .mini{padding:6px 8px;font-size:12px}
+.stat.m{flex-wrap:wrap}.stat .rh{flex-basis:100%;font-style:normal;font-weight:800;font-size:13px;background:rgba(255,255,255,.7);border-radius:8px;padding:3px 6px;margin-top:6px;text-align:center}
 #bell.on{background:var(--soonbg);border-color:var(--soon)}
 #bell.need{animation:pulse 1.2s infinite;border-color:var(--over)}
 
@@ -484,10 +485,11 @@ function render(){
   const live = isLive(cafe);
   const income = bookings.filter(b => b.cafeId === cafe.id && b.name).reduce((s,b) => s + (Number(b.price)||0), 0);
   const collected = bookings.filter(b => b.cafeId === cafe.id && b.paid).reduce((s,b) => s + (Number(b.paidAmount)||0), 0);
+  const rentH = bookings.filter(b => b.cafeId === cafe.id && b.name).reduce((s,b) => s + Math.max(0, bEnd(b, cafe) - bStart(b, cafe)), 0);
   const when = live ? 'الحين' : 'الساعة ' + hl(H);
   stats.innerHTML = `<div class="stat f"><span>فاضية<br><small>${when}</small></span><b>${cnt.free}</b></div>
     <div class="stat b"><span>محجوزة<br><small>${when}</small></span><b>${cnt.busy + cnt.soon}</b></div>
-    <button class="stat m" id="cashBtn" style="border:0;cursor:pointer;font:inherit;text-align:right"><span>💰 الصندوق<br><small>انقبض ${money(collected)}</small></span><b style="font-size:16px">${money(income)}</b></button>
+    <button class="stat m" id="cashBtn" style="border:0;cursor:pointer;font:inherit;text-align:right"><span>💰 الصندوق<br><small>انقبض ${money(collected)}</small></span><b style="font-size:16px">${money(income)}</b><em class="rh">⏱️ ${rentH ? hrsL(rentH) : '0 ساعة'} تأجير</em></button>
     ${cnt.soon ? `<div class="stat y"><span>⏳ قرب يخلص وقتها</span><b>${cnt.soon}</b></div>` : ''}
     ${cnt.over ? `<div class="stat o"><span>⏰ خلص وقتها</span><b>${cnt.over}</b></div>` : ''}`;
   let hc = '';
@@ -1437,6 +1439,7 @@ async function openCash(){
       <div class="${S.due > 0 ? 'bad' : ''}"><small>⏳ ما انحسب</small><b>${money(S.due)}</b></div>
     </div>
     <div class="kv"><span>مجموع الحجوزات (${S.n})</span><b>${money(S.total)}</b></div>
+    <div class="kv"><span>⏱️ ساعات التأجير اليوم</span><b>${(() => { const h = bookings.filter(b => b.cafeId === cafe.id && b.name).reduce((s,b) => s + Math.max(0, bEnd(b, cafe) - bStart(b, cafe)), 0); return h ? hrsL(h) : '0 ساعة'; })()}</b></div>
     <div class="kv"><span><b>لازم يكون بالصندوق كاش</b></span><b style="color:var(--bk);font-size:18px">${money(S.cash)}</b></div>
     <h3 style="margin:16px 0 4px;font-size:16px">👤 منو قبض</h3>${empRows}
     ${unpaid ? `<h3 style="margin:16px 0 4px;font-size:16px;color:var(--over)">⏳ حجوزات ما انحسبت</h3>${unpaid}` : ''}
