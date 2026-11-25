@@ -551,7 +551,7 @@ function openTent(cafe, n){
     tl += `<button class="${fs === null ? 'b' : part ? (fs === h ? 'p pl' : 'p') : ''}" data-h="${fs === null ? h : fs}" ${fs === null || RO ? 'disabled' : ''}>${hl(part ? fs : h)}</button>`;
   }
   const live = selDate === dstr(new Date()), m = nowMin();
-  const cards = list.map(b => {
+  const cards = list.slice().sort((a, b) => bStart(b, cafe) - bStart(a, cafe)).map(b => {   // الأحدث فوق والقديم تحت
     const hrs = bEnd(b,cafe) - bStart(b,cafe), endM = bEnd(b,cafe) * 60, stM = bStart(b,cafe) * 60;
     let flag = '', extra = '';
     if (live && !b.done && endM <= m){
