@@ -265,6 +265,11 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .toast div{flex:1}
 .toast small{display:block;font-weight:500;color:inherit;opacity:.8}
 .toast button{border:0;border-radius:10px;padding:7px 10px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.8);color:inherit}
+.tones{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.tone{display:flex;align-items:center;gap:6px;border:2px solid var(--line);border-radius:12px;padding:8px 10px;cursor:pointer}
+.tone span{flex:1;font-weight:700}.tone.on{border-color:var(--bk);background:var(--bkbg)}
+.tone.on span::after{content:' ✓';color:var(--bk)}
+.tone .mini{padding:6px 8px;font-size:12px}
 #bell.on{background:var(--soonbg);border-color:var(--soon)}
 #bell.need{animation:pulse 1.2s infinite;border-color:var(--over)}
 
@@ -1608,11 +1613,30 @@ function makeTone(notes){
   parts.forEach((x, i) => v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x)) * 32767, true));
   return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
 }
-const SND = {
-  soon: makeTone([[880, 180], [0, 120], [880, 180], [0, 120], [1175, 300]]),
-  over: makeTone([[1320, 160], [0, 80], [990, 160], [0, 80], [1320, 160], [0, 80], [990, 160], [0, 250], [1320, 160], [0, 80], [990, 160], [0, 80], [1320, 160], [0, 80], [990, 300]]),
-  silent: makeTone([[0, 60]])
+// 🎵 النغمات: كل نغمة لها صوت "قرب يخلص" وصوت "خلص الوقت" (أقوى ويتكرر)
+const rep3 = (a, gap) => [...a, [0, gap], ...a, [0, gap], ...a];
+const TONES = {
+  classic: { t: '🔔 الجرس (الأصلي)', soon: [[880, 180], [0, 120], [880, 180], [0, 120], [1175, 300]],
+    over: rep3([[1320, 160], [0, 80], [990, 160], [0, 80], [1320, 160], [0, 80], [990, 160]], 250) },
+  chime: { t: '🎐 رنّة هادية', soon: [[660, 220], [880, 220], [1320, 420]],
+    over: rep3([[1320, 200], [990, 200], [660, 300]], 300) },
+  digital: { t: '⏰ منبه رقمي', soon: [[2000, 90], [0, 70], [2000, 90], [0, 70], [2000, 90]],
+    over: rep3([[2000, 90], [0, 60], [2000, 90], [0, 60], [2000, 90], [0, 60], [2000, 90]], 350) },
+  siren: { t: '🚨 صفارة', soon: [[700, 160], [1000, 160], [700, 160], [1000, 160]],
+    over: rep3([[650, 140], [850, 140], [1050, 140], [1250, 140], [1050, 140], [850, 140]], 120) },
+  bird: { t: '🐦 عصفور', soon: [[2400, 70], [2800, 70], [0, 90], [2600, 70], [3000, 90]],
+    over: rep3([[2400, 70], [2800, 70], [0, 60], [2600, 70], [3000, 70], [0, 60], [2400, 70], [2900, 100]], 300) },
+  drum: { t: '🥁 طبل', soon: [[160, 140, 1], [0, 90], [160, 140, 1], [0, 90], [220, 220, 1]],
+    over: rep3([[160, 120, 1], [0, 60], [160, 120, 1], [0, 60], [220, 120, 1], [0, 60], [160, 200, 1]], 250) }
 };
+let toneKey = (() => { try { const k = localStorage.getItem('tone'); return TONES[k] ? k : 'classic'; } catch(_){ return 'classic'; } })();
+const SND = { silent: makeTone([[0, 60]]) };
+function setTone(k){ toneKey = TONES[k] ? k : 'classic'; try { localStorage.setItem('tone', toneKey); } catch(_){}
+  try { if (SND.soon) URL.revokeObjectURL(SND.soon); if (SND.over) URL.revokeObjectURL(SND.over); } catch(_){}
+  SND.soon = makeTone(TONES[toneKey].soon); SND.over = makeTone(TONES[toneKey].over); }
+setTone(toneKey);
+function testTone(kind){ // تجربة: تشغّل الصوت حتى لو التنبيه مطفي
+  try { player.src = SND[kind]; player.currentTime = 0; player.play().then(() => { if (alertsOn){ audioReady = true; paintBell(); } }).catch(() => {}); } catch(_){} }
 const player = new Audio(); player.preload = 'auto';
 let alertsOn = (() => { try { return localStorage.getItem('alertsOn') === '1'; } catch(_){ return false; } })();
 let audioReady = false, wakeLock = null;
@@ -1909,10 +1933,18 @@ function openAccount(){
     <h3 style="margin:0 0 6px;font-size:16px">📲 إشعارات الجوال</h3>
     <div class="sub" style="margin-bottom:6px">توصلك حتى لو الجوال مقفول أو البرنامج مسكّر: قبل نهاية الحجز بـ 15 دقيقة، ولما يخلص الوقت.</div>
     <div id="pushBox" class="sub">…</div><hr>
+    <h3 style="margin:0 0 6px;font-size:16px">🎵 نغمة التنبيه</h3>
+    <div class="sub" style="margin-bottom:6px">الصوت اللي يطلع من البرنامج وهو مفتوح. اختار نغمة واضغط ▶️ تسمعها.</div>
+    <div class="tones">${Object.entries(TONES).map(([k, v]) => `<div class="tone ${k === toneKey ? 'on' : ''}" data-tone="${k}"><span>${v.t}</span><button class="mini" data-play="${k}:soon" type="button">▶️ قرب يخلص</button><button class="mini" data-play="${k}:over" type="button">▶️ خلص</button></div>`).join('')}</div><hr>
     <div class="actions"><button class="btn danger" id="lo">🚪 تسجيل خروج</button><button class="btn ghost" id="cx">إغلاق</button></div>`);
   $('#cx').onclick = closeSheet;
   $('#lo').onclick = async () => { closeSheet(); await pushOff(true); await sb.auth.signOut(); };
   drawPushBox();
+  $('#sheet').querySelectorAll('[data-tone]').forEach(el => el.onclick = e => { if (e.target.closest('[data-play]')) return;
+    setTone(el.dataset.tone); $('#sheet').querySelectorAll('[data-tone]').forEach(x => x.classList.toggle('on', x === el)); testTone('soon');
+    toast('soon', '🎵 تغيرت النغمة', TONES[toneKey].t, null, 2500); });
+  $('#sheet').querySelectorAll('[data-play]').forEach(b => b.onclick = () => { const [k, kind] = b.dataset.play.split(':'); setTone(k);
+    $('#sheet').querySelectorAll('[data-tone]').forEach(x => x.classList.toggle('on', x.dataset.tone === k)); testTone(kind); });
   $('#pf').onsubmit = async e => {
     e.preventDefault(); const pw = e.target.pw.value;
     if (pw.length < 6){ $('#ferr').textContent = 'الرقم السري لازم 6 أحرف أو أكثر.'; return; }
