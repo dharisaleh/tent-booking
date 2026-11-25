@@ -153,7 +153,9 @@ const dstr = d => d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDat
 const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const shift = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return dstr(d); };
 const money = v => (Math.round(Number(v || 0) * 1000) / 1000).toLocaleString('en-US', { maximumFractionDigits: 3 }) + ' د.ك';
-function hl(h){ h = ((h % 24) + 24) % 24; if (h === 0) return '12 بالليل'; if (h === 12) return '12 الظهر'; return h < 12 ? h + ' الصبح' : (h - 12) + ' المسا'; }
+function hl(x){ const t = Math.round(Number(x) * 60), m = ((t % 60) + 60) % 60; let h = ((Math.floor(t / 60) % 24) + 24) % 24;
+  const mm = m ? ':' + String(m).padStart(2, '0') : '';
+  if (h === 0) return '12' + mm + ' بالليل'; if (h === 12) return '12' + mm + ' الظهر'; return h < 12 ? h + mm + ' الصبح' : (h - 12) + mm + ' المسا'; }
 function hl30(h){ const t = hl(h - 1); return t.replace(/^(\d+)/, '$1:30'); } // آخر موعد للدفع: قبل البداية بنص ساعة
 function hrsL(n){ return n === 1 ? 'ساعة' : n === 2 ? 'ساعتين' : (n <= 10 ? n + ' ساعات' : n + ' ساعة'); }
 function dayName(s, today){
@@ -207,7 +209,7 @@ function tentTimes(t){
   const free = []; let cur = from;
   bk.forEach(([a, b]) => { if (a > cur) free.push([cur, Math.min(a, c.close)]); cur = Math.max(cur, b); });
   if (cur < c.close) free.push([cur, c.close]);
-  return { bk, free: free.filter(([a, b]) => b - a >= 1) };
+  return { bk, free: free.map(([a, b]) => [Math.ceil(a - 1e-9), Math.floor(b + 1e-9)]).filter(([a, b]) => b - a >= 1) };
 }
 // 🔍 تكبير الخيمة: يبين ساعاتها، والزبون يختار البداية والنهاية من الساعات الفاضية
 let pick = null;

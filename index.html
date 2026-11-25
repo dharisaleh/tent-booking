@@ -135,6 +135,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .bk .m{color:var(--mut);font-size:13px;margin-top:4px;line-height:1.6}
 .bk .actions{margin-top:8px}
 .bk .actions .btn{padding:8px 10px;font-size:14px}
+.endline{margin:6px 0 2px;font-size:15px;color:var(--ink)}
 .price{background:var(--acc2);color:var(--acc);border-radius:12px;padding:10px 12px;margin-top:12px;display:flex;justify-content:space-between;font-weight:800}
 select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fffdf9;font-size:16px}
 .access{font-size:13px;font-weight:700;border-radius:10px;padding:6px 10px;margin-bottom:8px;display:inline-block}
@@ -157,6 +158,8 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .tent.over{border-color:var(--over);background:var(--overbg);animation:pulse 1s infinite}.tent.over .pill{background:var(--over)}
 .strip i{background:#d3d6da}.strip i.b{background:#3fb36b}
 .tl button{background:var(--freebg2);color:#6b7177}.tl button.b{background:var(--bk)}
+.tl button.p{background:linear-gradient(90deg,var(--freebg2) 50%,var(--bk) 50%);color:#3b3b3b}
+.tl button.p.pl{background:linear-gradient(90deg,var(--bk) 50%,var(--freebg2) 50%)}
 .stat.f{background:var(--freebg2);color:#5f666d}.stat.b{background:var(--bkbg);color:var(--bk)}
 .stat.y{background:var(--soonbg);color:#a87a00}.stat.o{background:var(--overbg);color:var(--over);animation:pulse 1s infinite;border:1px solid transparent}
 .tab small{color:#6b7177}
@@ -363,8 +366,13 @@ const dstr = d => d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate());
 const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
 const shift = (s,n) => { const d = parse(s); d.setDate(d.getDate()+n); return dstr(d); };
 const money = v => (Math.round(Number(v||0)*1000)/1000).toLocaleString('en-US',{maximumFractionDigits:3}) + ' د.ك';
-function hrsL(n){ return n===1?'ساعة':n===2?'ساعتين':(n<=10? n+' ساعات' : n+' ساعة'); }
-function hl(h){ h = ((h % 24) + 24) % 24; if (h === 0) return '12ص'; if (h === 12) return '12ظ'; return h < 12 ? h + 'ص' : (h - 12) + 'م'; }
+function hrsL(n){ const t = Math.round(n * 60), H = Math.floor(t / 60), M = t % 60;
+  const hs = H === 0 ? '' : H === 1 ? 'ساعة' : H === 2 ? 'ساعتين' : (H <= 10 ? H + ' ساعات' : H + ' ساعة');
+  if (!M) return hs; if (M === 30) return H ? hs + ' ونص' : 'نص ساعة';
+  return H ? hs + ' و' + M + ' دقيقة' : M + ' دقيقة'; }
+function hl(x){ const t = Math.round(Number(x) * 60), m = ((t % 60) + 60) % 60; let h = ((Math.floor(t / 60) % 24) + 24) % 24;
+  const mm = m ? ':' + String(m).padStart(2, '0') : '';
+  if (h === 0) return '12' + mm + 'ص'; if (h === 12) return '12' + mm + 'ظ'; return h < 12 ? h + mm + 'ص' : (h - 12) + mm + 'م'; }
 
 const SB_URL = 'https://xpavokpljazifycuuoko.supabase.co';
 const SB_KEY = 'sb_publishable_vPWhIUSBGg3nQLrwoW8B1Q_Q3MsS1Jj';
@@ -373,7 +381,7 @@ const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession
 let db = true, me = null, meP = null, canAdmin = false, owner = false, readOnly = false, people = {};
 function canBook(c){ return !!c && !!meP && (owner || (meP.can_book && meP.cafe_id === c.id)); }
 async function q(p){ const { data, error } = await p; if (error) throw error; return data; }
-function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.tent, start: r.start_h, end: r.end_h, name: r.name,
+function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.tent, start: r.start_m != null ? r.start_m / 60 : r.start_h, end: r.end_m != null ? r.end_m / 60 : r.end_h, name: r.name,
   phone: r.phone || '', people: r.people, note: r.note || '', rate: Number(r.rate), price: Number(r.price), done: r.done,
   by: r.created_by, at: r.created_at ? new Date(r.created_at).getTime() : 0,
   paid: !!r.paid, source: r.source || 'staff', payMethod: r.pay_method, paidAmount: Number(r.paid_amount || 0), paidBy: r.paid_by, paidAt: r.paid_at ? new Date(r.paid_at).getTime() : 0 }; }
@@ -401,7 +409,7 @@ function tentsOf(c){ return Math.max(0, Math.min(200, Number(c.tents)||0)); }
 function bStart(b, c){ return Number.isFinite(Number(b.start)) && b.start !== null ? Number(b.start) : cfg(c).open; }
 function bEnd(b, c){ return Number.isFinite(Number(b.end)) && b.end !== null ? Number(b.end) : cfg(c).close; }
 function tentBookings(c, n){ return bookings.filter(b => b.cafeId === c.id && Number(b.tent) === n && b.name).sort((a,b) => bStart(a,c) - bStart(b,c)); }
-function bookingAt(c, n, h){ return tentBookings(c, n).find(b => bStart(b,c) <= h && h < bEnd(b,c)); }
+function bookingAt(c, n, h){ return tentBookings(c, n).find(b => bStart(b,c) < h + 1 && h < bEnd(b,c)); }   // أي حجز داخل هالساعة ولو جزء منها
 function curHour(c){
   const { open, close } = cfg(c);
   if (selHour !== null && selHour >= open && selHour < close) return selHour;
@@ -529,8 +537,8 @@ function openTent(cafe, n){
   const C = cfg(cafe), list = tentBookings(cafe, n), RO = !canBook(cafe);
   let tl = '';
   for (let h = C.open; h < C.close; h++){
-    const b = bookingAt(cafe, n, h);
-    tl += `<button class="${b ? 'b' : ''}" data-h="${h}" ${b || RO ? 'disabled' : ''}>${hl(h)}</button>`;
+    const fs = freeStartIn(cafe, n, h), part = fs !== null && bookingAt(cafe, n, h);
+    tl += `<button class="${fs === null ? 'b' : part ? (fs === h ? 'p pl' : 'p') : ''}" data-h="${fs === null ? h : fs}" ${fs === null || RO ? 'disabled' : ''}>${hl(part ? fs : h)}</button>`;
   }
   const live = selDate === dstr(new Date()), m = nowMin();
   const cards = list.map(b => {
@@ -610,7 +618,7 @@ function openTent(cafe, n){
     b.disabled = true;
     try {
       const rate = Number(bk.rate) || C.price;
-      await q(sb.from('bookings').update({ end_h: end, done: false, price: Math.round((end - bStart(bk,cafe)) * rate * 1000) / 1000 }).eq('id', bk.id));
+      await q(sb.from('bookings').update({ end_m: Math.round(end * 60), done: false, price: Math.round((end - bStart(bk,cafe)) * rate * 1000) / 1000 }).eq('id', bk.id));
       await loadBookings();
     } catch(err){ $('#ferr').textContent = err && err.code === '23P01' ? 'ما يصير تمديد، في حجز بعده على نفس الخيمة.' : errText(err); b.disabled = false; }
   });
@@ -620,28 +628,37 @@ function openTent(cafe, n){
     el.textContent = 'سجّله: ' + nm + (at ? ' · ' + new Date(at).toLocaleString('ar-KW-u-nu-latn',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}) : '');
   });
 }
+// أول دقيقة فاضية داخل الساعة h (أو null لو الساعة كلها محجوزة)
+function freeStartIn(cafe, n, h){
+  let t = h; for (const b of tentBookings(cafe, n)){ const a = bStart(b, cafe), e = bEnd(b, cafe); if (a <= t + 1e-9 && t < e - 1e-9) t = e; }
+  return t < Math.min(h + 1, cfg(cafe).close) - 1e-9 ? t : null;
+}
 function firstFree(cafe, n, from){
   const C = cfg(cafe);
-  for (let h = from; h < C.close; h++) if (!bookingAt(cafe, n, h)) return h;
-  for (let h = C.open; h < C.close; h++) if (!bookingAt(cafe, n, h)) return h;
+  for (let h = from; h < C.close; h++){ const t = freeStartIn(cafe, n, h); if (t !== null) return t; }
+  for (let h = C.open; h < C.close; h++){ const t = freeStartIn(cafe, n, h); if (t !== null) return t; }
   return C.open;
 }
 
+// وقت بالدقايق ⇄ نص "HH:MM" لخانة الوقت
+const toHM = x => { const t = Math.round(x * 60), h = Math.floor(t / 60) % 24, m = t % 60; return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0'); };
+function fromHM(v, C){ const [h, m] = String(v || '').split(':').map(Number); if (!Number.isFinite(h)) return NaN; let x = h + (m || 0) / 60; if (x < C.open && x + 24 <= C.close) x += 24; return x; }
 function openBook(cafe, n, existing, startH){
   if (!canBook(cafe)) return;
   const C = cfg(cafe), b = existing || {};
-  const s0 = existing ? bStart(b, cafe) : startH;
-  let e0 = existing ? bEnd(b, cafe) : s0 + 1;
-  if (!existing){ // extend default to 2 hours if free
-    if (s0 + 2 <= C.close && !bookingAt(cafe, n, s0 + 1)) e0 = s0 + 2;
-  }
-  let so = '', eo = '';
-  for (let h = C.open; h < C.close; h++) so += `<option value="${h}" ${h===s0?'selected':''}>${hl(h)}</option>`;
-  for (let h = C.open + 1; h <= C.close; h++) eo += `<option value="${h}" ${h===e0?'selected':''}>${hl(h)}</option>`;
+  let s0 = existing ? bStart(b, cafe) : startH;
+  // حجز جديد بالساعة الحالية: يبدأ من الحين بالدقيقة
+  if (!existing && selDate === dstr(new Date())){ const nm = nowMin() / 60; if (Math.floor(nm) === Math.floor(startH) && nm > startH && nm >= C.open && nm < C.close && !tentBookings(cafe, n).some(x => bStart(x, cafe) <= nm && nm < bEnd(x, cafe))) s0 = nowMin() / 60; }
+  let d0 = existing ? Math.round((bEnd(b, cafe) - s0) * 60) : 60;
+  if (!existing){ const nx = tentBookings(cafe, n).filter(x => bStart(x, cafe) >= s0).map(x => bStart(x, cafe))[0];
+    if (s0 + 2 <= C.close && (nx === undefined || nx >= s0 + 2)) d0 = 120;
+    if (nx !== undefined && nx - s0 < 1) d0 = Math.max(1, Math.round((nx - s0) * 60)); }
   openSheet(`<h2>${existing ? 'تعديل حجز' : 'حجز'} خيمة ${n}</h2>
     <div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
     <form id="bf">
-      <div class="row"><div><label>من</label><select class="f" name="start">${so}</select></div><div><label>إلى</label><select class="f" name="end">${eo}</select></div></div>
+      <div class="row"><div><label>يبدأ الساعة</label><input class="f" name="start" type="time" step="60" value="${toHM(s0)}" required dir="ltr"></div>
+        <div><label>المدة</label><select class="f" name="dur"></select></div></div>
+      <div class="endline" id="endl"></div>
       <div class="price" id="pr"></div>
       <label>اسم الزبون *</label><input class="f" name="name" required maxlength="80" value="${esc(b.name)}">
       <label>رقم الجوال</label><input class="f" name="phone" type="tel" inputmode="tel" maxlength="20" dir="ltr" value="${esc(b.phone)}">
@@ -651,28 +668,39 @@ function openBook(cafe, n, existing, startH){
       <div class="actions"><button class="btn green" type="submit">✅ ${existing ? 'حفظ' : 'تأكيد الحجز'}</button><button class="btn ghost" type="button" id="cx">رجوع</button></div>
     </form>`);
   const form = $('#bf');
-  const upd = () => {
-    const s = Number(form.start.value), e = Number(form.end.value), hrs = e - s; $('#ferr').textContent = '';
-    $('#pr').innerHTML = hrs > 0 ? `<span>${hrsL(hrs)} × ${money(C.price)}</span><span>${money(hrs * C.price)}</span>` : '<span style="color:var(--busy)">وقت النهاية لازم بعد البداية</span>';
+  const durOpts = () => {   // من نص ساعة لين السكير، كل نص ساعة (+ المدة الحالية لو غير)
+    const s = fromHM(form.start.value, C), max = Math.round((C.close - (Number.isFinite(s) ? s : C.open)) * 60);
+    const cur = Number(form.dur.value) || d0, opts = [];
+    for (let m = 30; m <= Math.min(max, 12 * 60); m += 30) opts.push(m);
+    if (cur > 0 && cur <= max && !opts.includes(cur)) opts.push(cur); opts.sort((a, b) => a - b);
+    const pick = opts.includes(cur) ? cur : (opts.filter(m => m <= cur).pop() || opts[0]);
+    form.dur.innerHTML = opts.map(m => `<option value="${m}" ${m === pick ? 'selected' : ''}>${hrsL(m / 60)}</option>`).join('') || '<option value="0">—</option>';
   };
-  form.start.onchange = () => { if (Number(form.end.value) <= Number(form.start.value)) form.end.value = Math.min(C.close, Number(form.start.value) + 1); upd(); };
-  form.end.onchange = upd; upd();
+  const upd = () => {
+    const s = fromHM(form.start.value, C), mins = Number(form.dur.value), hrs = mins / 60; $('#ferr').textContent = '';
+    if (!Number.isFinite(s) || s < C.open || s >= C.close){ $('#endl').textContent = ''; $('#pr').innerHTML = `<span style="color:var(--busy)">الوقت لازم بين ${hl(C.open)} و ${hl(C.close)}</span>`; return; }
+    $('#endl').innerHTML = `⏰ من <b>${hl(s)}</b> لين <b>${hl(s + hrs)}</b>`;
+    $('#pr').innerHTML = mins > 0 ? `<span>${hrsL(hrs)} · ${money(C.price)} للساعة</span><span>${money(Math.round(hrs * C.price * 1000) / 1000)}</span>` : '';
+  };
+  form.start.oninput = () => { durOpts(); upd(); };
+  form.dur.onchange = upd; durOpts(); upd();
   $('#cx').onclick = () => openTent(cafe, n);
   form.onsubmit = async e => {
     e.preventDefault();
     const f = new FormData(form), btn = form.querySelector('[type=submit]');
     const name = String(f.get('name')).trim(); if (!name) return;
-    const start = Number(f.get('start')), end = Number(f.get('end'));
+    const start = fromHM(f.get('start'), C), mins = Number(f.get('dur'));
+    const sm = Math.round(start * 60), em = sm + mins, end = em / 60;
+    if (!Number.isFinite(start) || start < C.open || start >= C.close || !mins || end > C.close + 1e-9){ $('#ferr').textContent = `الوقت لازم بين ${hl(C.open)} و ${hl(C.close)}`; return; }
     btn.disabled = true; $('#ferr').textContent = '';
-    const data = { cafe_id: cafe.id, date: selDate, tent: n, start_h: start, end_h: end, name,
+    const data = { cafe_id: cafe.id, date: selDate, tent: n, start_m: sm, end_m: em, name,
       phone: String(f.get('phone')).trim() || null, people: Number(f.get('people')) || null, note: String(f.get('note')).trim() || null,
-      rate: C.price, price: Math.round((end - start) * C.price * 1000) / 1000 };
+      rate: C.price, price: Math.round(mins / 60 * C.price * 1000) / 1000 };
     try {
-      if (end <= start) throw new Error('range');
       if (existing) await q(sb.from('bookings').update(data).eq('id', existing.id));
       else await q(sb.from('bookings').insert(data));
       await loadBookings();
-      selHour = start;
+      selHour = Math.floor(start);
       setTimeout(() => { const c = cafes.find(x => x.id === cafe.id); if (c) openTent(c, n); }, 150);
     } catch(err){
       $('#ferr').textContent = errText(err); btn.disabled = false;
@@ -1371,18 +1399,19 @@ async function openCash(){
 /* ---------- سجل التعديلات (للمالك) ---------- */
 function logText(r){
   const a = r.after || {}, b = r.before || {}, x = r.after || r.before || {};
-  const range = x.start_h != null ? `${hl(x.start_h)}–${hl(x.end_h)}` : '';
+  const xs = v => v.start_m != null ? v.start_m / 60 : v.start_h, xe = v => v.end_m != null ? v.end_m / 60 : v.end_h;
+  const range = x.start_h != null ? `${hl(xs(x))}–${hl(xe(x))}` : '';
   switch (r.action){
     case 'create': return a.source === 'online' && !r.actor ? { t: `🌐 حجز أونلاين من الزبون · ${money(a.price)}` } : { t: `سجّل حجز · ${money(a.price)}${a.paid ? ' · مدفوع' : ''}` };
     case 'delete': return !r.actor ? { t: '🤖 انلغى تلقائياً لأنه ما دفع قبل الموعد بنص ساعة' } : { t: `حذف الحجز${b.paid ? ' وهو مدفوع ' + money(b.paid_amount) : ''}`, bad: true };
     case 'paid': return { t: `قبض ${money((a.paid_amount || 0) - (b.paid ? (b.paid_amount || 0) : 0))} · ${PM[a.pay_method] || ''}`, good: true };
     case 'unpaid': return { t: `ألغى الدفع (${money(b.paid_amount)})`, bad: true };
-    case 'extend': return { t: `مدّد لين ${hl(a.end_h)} · السعر صار ${money(a.price)}` };
+    case 'extend': return { t: `مدّد لين ${hl(xe(a))} · السعر صار ${money(a.price)}` };
     case 'done': return { t: 'طلع الزبون' };
     default: {
       const ch = [];
       if (a.name !== b.name) ch.push(`الاسم: ${esc(b.name)} ← ${esc(a.name)}`);
-      if (a.start_h !== b.start_h || a.end_h !== b.end_h) ch.push(`الوقت: ${hl(b.start_h)}–${hl(b.end_h)} ← ${hl(a.start_h)}–${hl(a.end_h)}`);
+      if (xs(a) !== xs(b) || xe(a) !== xe(b)) ch.push(`الوقت: ${hl(xs(b))}–${hl(xe(b))} ← ${hl(xs(a))}–${hl(xe(a))}`);
       if (a.tent !== b.tent) ch.push(`الخيمة: ${b.tent} ← ${a.tent}`);
       if (Number(a.price) !== Number(b.price)) ch.push(`السعر: ${money(b.price)} ← ${money(a.price)}`);
       if ((a.phone || '') !== (b.phone || '')) ch.push('رقم الجوال');
@@ -1408,7 +1437,7 @@ async function openLog(){
       return `<div class="lg ${L.bad ? 'bad' : L.warn ? 'warn' : L.good ? 'good' : ''}">
         <div class="lh"><b>${r.actor ? esc(pname(r.actor)) : (r.action === 'create' ? '🌐 الزبون' : '🤖 النظام')}</b><small>${tm}</small></div>
         <div>${L.t}</div>
-        <small>${esc(c ? c.name : '')} · خيمة ${r.tent} · ${esc(x.name || '')} · ${x.start_h != null ? hl(x.start_h) + '–' + hl(x.end_h) : ''}</small></div>`;
+        <small>${esc(c ? c.name : '')} · خيمة ${r.tent} · ${esc(x.name || '')} · ${x.start_h != null ? hl(x.start_m != null ? x.start_m / 60 : x.start_h) + '–' + hl(x.end_m != null ? x.end_m / 60 : x.end_h) : ''}</small></div>`;
     }).join('');
   } catch(_){ const box = $('#logList'); if (box) box.textContent = 'ما قدرنا نحمّل السجل.'; }
 }
@@ -1473,7 +1502,7 @@ function dashBody({ from, to, B, logs }){
   const pct = (v, m) => m ? Math.max(2, Math.round(v / m * 100)) : 0;
 
   const kpis = `<div class="kpis">
-    <div class="kpi"><small>💰 مجموع الحجوزات</small><b>${money(tot.rev)}</b><i>${list.length} حجز · ${tot.hrs} ساعة</i></div>
+    <div class="kpi"><small>💰 مجموع الحجوزات</small><b>${money(tot.rev)}</b><i>${list.length} حجز · ${Math.round(tot.hrs * 10) / 10} ساعة</i></div>
     <div class="kpi g"><small>✅ انقبض</small><b>${money(tot.cash + tot.knet)}</b><i>💵 ${money(tot.cash)} · 💳 ${money(tot.knet)}</i></div>
     <div class="kpi ${tot.due > 0 ? 'r' : ''}"><small>⏳ ما انحسب</small><b>${money(tot.due)}</b><i>${list.filter(b => due(b) > 0).length} حجز</i></div>
     <div class="kpi y"><small>📈 نسبة الإشغال</small><b>${occ}%</b><i>متوسط الحجز ${money(list.length ? tot.rev / list.length : 0)}</i></div>
@@ -1491,7 +1520,7 @@ function dashBody({ from, to, B, logs }){
   const hc = {}; let hmin = 24, hmax = 0;
   sel.forEach(c => { const C = cfg(c); hmin = Math.min(hmin, C.open); hmax = Math.max(hmax, C.close); });
   for (let h = hmin; h < hmax; h++) hc[h] = 0;
-  list.forEach(b => { const c = cafeOf(b.cafeId); for (let h = bStart(b,c); h < bEnd(b,c); h++) hc[h] = (hc[h] || 0) + 1; });
+  list.forEach(b => { const c = cafeOf(b.cafeId); for (let h = Math.floor(bStart(b,c)); h < bEnd(b,c); h++) hc[h] = (hc[h] || 0) + 1; });
   const hm = Math.max(...Object.values(hc), 0);
   const hours = `<div class="card"><h3>⏰ أكثر الساعات زحمة</h3>${Object.keys(hc).map(Number).sort((a,b) => a - b).map(h => `<div class="hbar"><span class="l">${hl(h)}–${hl(h + 1)}</span><span class="t"><span style="width:${pct(hc[h], hm)}%"></span></span><span class="v">${hc[h]} خيمة</span></div>`).join('')}</div>`;
 
