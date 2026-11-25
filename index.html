@@ -1603,8 +1603,11 @@ function dashBody({ from, to, B, logs }){
 // الصوت نصنعه بالكود (ملف WAV صغير)، ونشغله كـ صوت ميديا عشان يطلع حتى لو الآيفون على الصامت
 function makeTone(notes){
   const sr = 22050, parts = [];
-  notes.forEach(([f, ms, vol]) => { const n = Math.floor(sr * ms / 1000);
-    for (let i = 0; i < n; i++){ const env = Math.min(1, i / 300, (n - i) / 300); parts.push(f ? Math.sin(2 * Math.PI * f * i / sr) * env * (vol || .9) : 0); } });
+  // [تردد، مدة، قوة، شكل الموجة sin|sq|saw، تردد النهاية لو صوت يزحف]
+  notes.forEach(([f, ms, vol, wave, f2]) => { const n = Math.floor(sr * ms / 1000); let ph = 0;
+    for (let i = 0; i < n; i++){ const env = Math.min(1, i / 200, (n - i) / 200), fr = f2 ? f + (f2 - f) * i / n : f;
+      ph += 2 * Math.PI * fr / sr; const x = wave === 'sq' ? (Math.sin(ph) >= 0 ? 1 : -1) * .8 : wave === 'saw' ? ((ph / (2 * Math.PI)) % 1) * 2 - 1 : Math.sin(ph);
+      parts.push(f ? x * env * (vol || .9) : 0); } });
   const buf = new ArrayBuffer(44 + parts.length * 2), v = new DataView(buf);
   const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
   w(0, 'RIFF'); v.setUint32(4, 36 + parts.length * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
@@ -1626,6 +1629,15 @@ const TONES = {
     over: rep3([[650, 140], [850, 140], [1050, 140], [1250, 140], [1050, 140], [850, 140]], 120) },
   bird: { t: '🐦 عصفور', soon: [[2400, 70], [2800, 70], [0, 90], [2600, 70], [3000, 90]],
     over: rep3([[2400, 70], [2800, 70], [0, 60], [2600, 70], [3000, 70], [0, 60], [2400, 70], [2900, 100]], 300) },
+  // 📢 نغمات مزعجة وعالية عشان تنسمع بالزحمة
+  alarm: { t: '📢 إنذار قوي (مزعج)', soon: rep3([[3000, 120, 1, 'sq'], [0, 60]], 60),
+    over: [...Array(10)].flatMap(() => [[3000, 110, 1, 'sq'], [0, 50], [2400, 110, 1, 'sq'], [0, 50]]) },
+  fire: { t: '🚒 جرس حريق (مزعج)', soon: [[950, 600, 1, 'sq', 1250]],
+    over: [...Array(6)].flatMap(() => [[950, 380, 1, 'sq', 1250], [1250, 380, 1, 'sq', 950]]) },
+  police: { t: '🚓 سيارة شرطة (مزعج)', soon: [[700, 450, 1, 'saw', 1600], [1600, 450, 1, 'saw', 700]],
+    over: [...Array(7)].flatMap(() => [[650, 260, 1, 'saw', 1700], [1700, 260, 1, 'saw', 650]]) },
+  horn: { t: '📯 بوق عالي (مزعج)', soon: [[440, 350, 1, 'saw'], [0, 120], [440, 350, 1, 'saw']],
+    over: [...Array(5)].flatMap(() => [[440, 420, 1, 'saw'], [0, 90], [554, 420, 1, 'saw'], [0, 90]]) },
   drum: { t: '🥁 طبل', soon: [[160, 140, 1], [0, 90], [160, 140, 1], [0, 90], [220, 220, 1]],
     over: rep3([[160, 120, 1], [0, 60], [160, 120, 1], [0, 60], [220, 120, 1], [0, 60], [160, 200, 1]], 250) }
 };
