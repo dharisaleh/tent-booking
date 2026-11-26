@@ -277,6 +277,12 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .hprog{height:8px;background:var(--freebg2);border-radius:99px;overflow:hidden;margin-top:10px}.hprog i{display:block;height:100%;background:var(--bk);border-radius:99px}
 .hpct{font-size:12px;color:var(--mut);margin-top:4px}
 .stat.m{flex-wrap:wrap}.stat .rh{flex-basis:100%;font-style:normal;font-weight:800;font-size:13px;background:rgba(255,255,255,.7);border-radius:8px;padding:3px 6px;margin-top:6px;text-align:center}
+.live{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 10px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;color:var(--mut)}
+.live i{width:9px;height:9px;border-radius:50%;background:#bbb;flex:none}
+.live.on{color:var(--bk);border-color:#bfe6cd;background:var(--bkbg)}.live.on i{background:#1fbf5f;animation:livep 1.6s infinite}
+.live.wait{color:#9a7400}.live.wait i{background:#f0b400}
+.live.off{color:var(--over);border-color:#f3c0c0;background:var(--overbg)}.live.off i{background:var(--over)}
+@keyframes livep{0%{box-shadow:0 0 0 0 rgba(31,191,95,.6)}70%{box-shadow:0 0 0 7px rgba(31,191,95,0)}100%{box-shadow:0 0 0 0 rgba(31,191,95,0)}}
 #bell.on{background:var(--soonbg);border-color:var(--soon)}
 #bell.need{animation:pulse 1.2s infinite;border-color:var(--over)}
 
@@ -338,6 +344,7 @@ header h1{display:flex;align-items:center;gap:8px}
 <div class="wrap" id="app" hidden>
   <header>
     <h1><img src="logo.png" alt="المقاهي الشعبية" class="hlogo"> حجز <span>الخيام</span></h1>
+    <button class="live wait" id="liveB" title="حالة الاتصال المباشر"><i></i><span>يتصل…</span></button>
     <button class="icon" id="bell" title="التنبيه الصوتي">🔕</button>
     <button class="icon" id="dashBtn" title="لوحة التحكم" hidden>📊</button>
     <button class="icon" id="acct" title="حسابي">👤</button>
@@ -1527,6 +1534,9 @@ async function fetchAll(make){
 function openDash(){ $('#app').hidden = true; $('#dash').hidden = false; window.scrollTo(0, 0); drawDash(null); loadDash(); }
 function closeDash(){ $('#dash').hidden = true; $('#app').hidden = false; render(); }
 $('#dashBtn').onclick = openDash;
+$('#liveB').onclick = () => { const on = liveOk && navigator.onLine, t = lastSync ? new Date(lastSync).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+  toast(on ? 'soon' : 'over', on ? '🟢 الصفحة لايف' : '🔴 الصفحة مو لايف', on ? 'أي حجز أو دفع ينسجل من أي جهاز يطلع عندك على طول · آخر تحديث ' + t : 'تأكد من النت، وإذا ما رجعت خضرا سكّر البرنامج وافتحه · آخر تحديث ' + t, null, 5000);
+  if (me){ loadBookings().catch(()=>{}); if (!liveOk) startRealtime(); } };
 
 let dashSeq = 0;
 async function loadDash(){
@@ -1867,8 +1877,20 @@ async function loadBookings(){
   const seq = ++bLoadSeq, d = selDate;
   const rows = await q(sb.from('bookings').select('*').eq('date', d));
   if (seq !== bLoadSeq || d !== selDate) return;
-  bookings = rows.map(normB); setStatus(''); render(); refreshOpenTent();
+  bookings = rows.map(normB); setStatus(''); render(); refreshOpenTent(); lastSync = Date.now(); paintLive();
 }
+// 🟢 مباشر: الصفحة متصلة وتتحدث لحالها | 🟡 يتصل | 🔴 مقطوع (ما فيه نت أو الاتصال طاح)
+let liveOk = false, lastSync = 0;
+function paintLive(){
+  const b = $('#liveB'); if (!b) return;
+  const on = navigator.onLine && liveOk, st = !navigator.onLine ? 'off' : on ? 'on' : 'wait';
+  b.className = 'live ' + st;
+  const t = lastSync ? new Date(lastSync).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+  b.querySelector('span').textContent = st === 'on' ? 'مباشر' : st === 'off' ? 'ما فيه نت' : 'يتصل…';
+  b.title = (st === 'on' ? 'الصفحة لايف: أي حجز ينضاف يطلع لك على طول' : 'الصفحة مو لايف الحين') + (t ? ' · آخر تحديث ' + t : '');
+}
+window.addEventListener('online', () => { paintLive(); if (me){ startRealtime(); loadBookings().catch(()=>{}); } });
+window.addEventListener('offline', paintLive);
 function refreshOpenTent(){
   if (!openTentRef || !$('#back').classList.contains('open') || $('#bf') || $('#cf') || $('#uf')) return;
   const c = cafes.find(x => x.id === openTentRef.cafe); if (c && $('#sheet h2') && $('#sheet h2').textContent === 'خيمة ' + openTentRef.n) openTent(c, openTentRef.n);
@@ -1878,12 +1900,14 @@ function subscribeBookings(){ bookings = []; setStatus('جاري التحميل�
 let channel = null, rt = null;
 function startRealtime(){
   if (channel) sb.removeChannel(channel);
+  liveOk = false; paintLive();
   const soon = fn => { clearTimeout(rt); rt = setTimeout(fn, 250); };
   channel = sb.channel('live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => soon(() => loadBookings().catch(()=>{})))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'cafes' }, () => loadCafes().catch(()=>{}))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => loadPeople().catch(()=>{}))
-    .subscribe();
+    .subscribe(st => { liveOk = st === 'SUBSCRIBED'; paintLive();
+      if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') setTimeout(() => { if (me && !liveOk) startRealtime(); }, 5000); });
 }
 // احتياط لو انقطع الاتصال المباشر: تحديث كل دقيقة، ولما يرجع الموظف للصفحة
 setInterval(() => { if (me && !document.hidden) loadBookings().catch(()=>{}); }, 60000);
