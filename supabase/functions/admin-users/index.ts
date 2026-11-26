@@ -87,10 +87,13 @@ Deno.serve(async (req) => {
     if (!checkPass(body.password)) return json({ error: "bad_password" }, 400);
     const { data: taken } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
     if (taken) return json({ error: "username_taken" }, 409);
-    const cafe_id = await cafeOrNull(body.cafe_id);
+    // board = عضو مجلس إدارة: يشوف كل المقاهي والتحليلات بس، وما يقدر يغيّر شي
+    const role = body.role === "board" ? "board" : "staff";
+    const cafe_id = role === "board" ? null : await cafeOrNull(body.cafe_id);
     const { data, error } = await admin.auth.admin.createUser({ email: emailOf(username), password: body.password, email_confirm: true });
     if (error || !data.user) return json({ error: "create_failed", detail: error?.message }, 400);
-    const { error: pe } = await admin.from("profiles").insert({ id: data.user.id, username, display_name, role: "staff", cafe_id, can_book: !!body.can_book && !!cafe_id, see_all: !!body.see_all || !cafe_id });
+    const { error: pe } = await admin.from("profiles").insert({ id: data.user.id, username, display_name, role, cafe_id,
+      can_book: role === "staff" && !!body.can_book && !!cafe_id, see_all: role === "board" || !!body.see_all || !cafe_id });
     if (pe) { await admin.auth.admin.deleteUser(data.user.id); return json({ error: "profile_failed", detail: pe.message }, 400); }
     return json({ ok: true, id: data.user.id });
   }
@@ -106,6 +109,8 @@ Deno.serve(async (req) => {
       if (body.can_book !== undefined) patch.can_book = !!body.can_book;
       if (body.see_all !== undefined) patch.see_all = !!body.see_all;
       if (patch.cafe_id === null){ patch.can_book = false; patch.see_all = true; }
+      if (body.role === "board" || body.role === "staff") patch.role = body.role;
+      if ((patch.role ?? target.role) === "board"){ patch.cafe_id = null; patch.can_book = false; patch.see_all = true; }
     }
     if (Object.keys(patch).length) {
       const { error } = await admin.from("profiles").update(patch).eq("id", id);

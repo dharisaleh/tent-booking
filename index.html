@@ -394,7 +394,7 @@ const SB_URL = 'https://xpavokpljazifycuuoko.supabase.co';
 const SB_KEY = 'sb_publishable_vPWhIUSBGg3nQLrwoW8B1Q_Q3MsS1Jj';
 const EMAIL_DOMAIN = 'staff.tent-booking.app';
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-let db = true, me = null, meP = null, canAdmin = false, owner = false, readOnly = false, people = {};
+let db = true, me = null, meP = null, canAdmin = false, owner = false, board = false, readOnly = false, people = {};
 function canBook(c){ return !!c && !!meP && (owner || (meP.can_book && meP.cafe_id === c.id)); }
 async function q(p){ const { data, error } = await p; if (error) throw error; return data; }
 function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.tent, start: r.start_m != null ? r.start_m / 60 : r.start_h, end: r.end_m != null ? r.end_m / 60 : r.end_h, name: r.name,
@@ -466,7 +466,7 @@ function strip(c, n, H){
 
 function render(){
   dateLabel();
-  $('#gear').hidden = !canAdmin; $('#dashBtn').hidden = !owner;
+  $('#gear').hidden = !canAdmin; $('#dashBtn').hidden = !(owner || board);
   const tabs = $('#tabs'), grid = $('#grid'), stats = $('#stats'), hours = $('#hours');
   if (!cafesLoaded || !cafes.length){ $('#bar').hidden = true; $('#editbar').innerHTML = ''; $('#access').textContent = ''; hours.innerHTML = ''; stats.innerHTML = ''; tabs.innerHTML = ''; }
   if (!cafesLoaded){ grid.innerHTML = ''; return; }
@@ -511,7 +511,7 @@ function render(){
 
   const acc = $('#access');
   acc.className = 'access ' + (canBook(cafe) ? 'ok' : 'ro');
-  acc.textContent = owner ? '👑 انت المالك: تقدر تحجز بكل المقاهي' : canBook(cafe) ? '✅ ' + (meP ? meP.display_name + ': ' : '') + 'تقدر تحجز بهالمقهى' : '👁️ اطلاع فقط بهالمقهى';
+  acc.textContent = owner ? '👑 انت المالك: تقدر تحجز بكل المقاهي' : board ? '📊 عضو مجلس إدارة: تشوف كل المقاهي والتحليلات بس' : canBook(cafe) ? '✅ ' + (meP ? meP.display_name + ': ' : '') + 'تقدر تحجز بهالمقهى' : '👁️ اطلاع فقط بهالمقهى';
   $('#bar').hidden = false;
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   $('#editMap').hidden = !canAdmin || view !== 'map' || editing || !total;
@@ -1349,7 +1349,7 @@ function openUsers(){
   const list = Object.values(people).sort((a,b) => (a.role === 'owner' ? -1 : 0) - (b.role === 'owner' ? -1 : 0) || a.display_name.localeCompare(b.display_name, 'ar'))
     .map(p => {
       const c = cafes.find(x => x.id === p.cafe_id);
-      const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط') + (p.role === 'owner' ? '' : (p.see_all ? ' · 🌐 يشوف كل المقاهي' : ' · 🏪 يشوف مقهاه بس'));
+      const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : p.role === 'board' ? '📊 عضو مجلس إدارة · يشوف التحليلات بس' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط') + (p.role !== 'staff' ? '' : (p.see_all ? ' · 🌐 يشوف كل المقاهي' : ' · 🏪 يشوف مقهاه بس'));
       return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small></div>
         <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
     }).join('');
@@ -1361,6 +1361,7 @@ function openUsers(){
       <label>اسم الموظف</label><input class="f" name="dname" required maxlength="60" placeholder="مثلاً: خالد">
       <label>اسم المستخدم (بالإنجليزي)</label><input class="f" name="uname" dir="ltr" autocapitalize="none" autocomplete="off" spellcheck="false" maxlength="30" placeholder="khaled">
       <label id="pwl">الرقم السري</label><input class="f" name="pw" dir="ltr" autocomplete="new-password" maxlength="72" placeholder="6 أحرف أو أكثر">
+      <div id="roleBox"><label>النوع</label><select class="f" name="role"><option value="staff">👤 موظف</option><option value="board">📊 عضو مجلس إدارة (تحليلات بس)</option></select></div>
       <div id="staffOnly">
         <label>المقهى</label><select class="f" name="cafe">${cafeOpts('')}</select>
         <label>الصلاحية</label><select class="f" name="perm"><option value="view">👁️ اطلاع فقط</option><option value="book">✅ يضيف حجوزات بمقهاه</option></select>
@@ -1372,11 +1373,13 @@ function openUsers(){
   $('#cx').onclick = closeSheet;
   bindSeg();
   const form = $('#uf');
+  form.role.onchange = () => { $('#staffOnly').hidden = form.role.value !== 'staff'; };
   $('#sheet').querySelectorAll('[data-ue]').forEach(b => b.onclick = () => {
     const p = people[b.dataset.ue]; if (!p) return;
     form.uid.value = p.id; form.dname.value = p.display_name; form.uname.value = p.username; form.uname.disabled = true;
     form.pw.value = ''; form.pw.placeholder = 'اتركه فاضي لو ما تبي تغيّره'; $('#pwl').textContent = 'رقم سري جديد';
-    $('#staffOnly').hidden = p.role === 'owner';
+    $('#roleBox').hidden = p.role === 'owner'; form.role.value = p.role === 'board' ? 'board' : 'staff';
+    $('#staffOnly').hidden = p.role !== 'staff';
     form.cafe.value = p.cafe_id || ''; form.perm.value = p.can_book ? 'book' : 'view'; form.scope.value = p.see_all ? 'all' : 'own';
     $('#uft').textContent = '✏️ تعديل: ' + p.display_name; form.dname.focus();
   });
@@ -1389,11 +1392,14 @@ function openUsers(){
   form.onsubmit = async e => {
     e.preventDefault();
     const btn = form.querySelector('[type=submit]'); btn.disabled = true; $('#ferr').textContent = '';
-    const id = form.uid.value, cafe_id = form.cafe.value || null, can_book = form.perm.value === 'book', see_all = form.scope.value === 'all';
+    const id = form.uid.value, role = form.role.value, isB = role === 'board';
+    const cafe_id = isB ? null : (form.cafe.value || null), can_book = !isB && form.perm.value === 'book', see_all = isB || form.scope.value === 'all';
+    const isOwnerEdit = id && people[id] && people[id].role === 'owner';
     try {
-      if ((can_book || !see_all) && !cafe_id) throw new Error('need_cafe');
-      if (id) await callAdmin({ action: 'update', id, display_name: form.dname.value, cafe_id, can_book, see_all, password: form.pw.value });
-      else await callAdmin({ action: 'create', username: form.uname.value, display_name: form.dname.value, password: form.pw.value, cafe_id, can_book, see_all });
+      if (!isOwnerEdit && !isB && (can_book || !see_all) && !cafe_id) throw new Error('need_cafe');
+      if (id) await callAdmin(isOwnerEdit ? { action: 'update', id, display_name: form.dname.value, password: form.pw.value }
+                                          : { action: 'update', id, role, display_name: form.dname.value, cafe_id, can_book, see_all, password: form.pw.value });
+      else await callAdmin({ action: 'create', role, username: form.uname.value, display_name: form.dname.value, password: form.pw.value, cafe_id, can_book, see_all });
       await loadPeople(); openUsers();
     } catch(err){
       $('#ferr').textContent = err.message === 'need_cafe' ? 'اختار مقهى الموظف.' : adminErr(err);
@@ -1438,7 +1444,7 @@ async function openCash(){
   const empRows = Object.entries(byEmp).map(([id, v]) => `<div class="kv"><span>${esc(pname(id))}</span><b>💵 ${money(v.cash)} · 💳 ${money(v.knet)}</b></div>`).join('') || '<div class="sub">ما انقبض شي للحين.</div>';
   const unpaid = mine.filter(b => due(b) > 0).sort((a,b) => bStart(a,cafe) - bStart(b,cafe))
     .map(b => `<div class="kv"><span>خيمة ${b.tent} · ${esc(b.name)} · ${hl(bStart(b,cafe))}–${hl(bEnd(b,cafe))}</span><b style="color:var(--over)">${money(due(b))}</b></div>`).join('');
-  const all = owner && cafes.length > 1 ? cafes.map(c => { const x = sum(bookings.filter(b => b.cafeId === c.id && b.name));
+  const all = (owner || board) && cafes.length > 1 ? cafes.map(c => { const x = sum(bookings.filter(b => b.cafeId === c.id && b.name));
       return `<div class="kv"><span>${esc(c.name)}</span><b>${money(x.cash + x.knet)} <small style="color:var(--mut)">من ${money(x.total)}</small></b></div>`; }).join('') : '';
   openSheet(`<h2>💰 الصندوق</h2><div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
     <div class="cash">
@@ -1853,7 +1859,7 @@ async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order(
 async function loadPeople(){
   const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book, see_all'));
   people = {}; rows.forEach(r => people[r.id] = r);
-  meP = people[me] || null; owner = !!meP && meP.role === 'owner'; canAdmin = owner;
+  meP = people[me] || null; owner = !!meP && meP.role === 'owner'; board = !!meP && meP.role === 'board'; canAdmin = owner;
   render();
 }
 let bLoadSeq = 0;
@@ -1934,7 +1940,7 @@ async function boot(){
 }
 sb.auth.onAuthStateChange((ev, session) => {
   if (ev === 'SIGNED_IN' && session && session.user.id !== me) enterApp(session);
-  if (ev === 'SIGNED_OUT'){ $('#dash').hidden = true; me = null; meP = null; owner = false; canAdmin = false; if (channel) sb.removeChannel(channel); channel = null; boot(); }
+  if (ev === 'SIGNED_OUT'){ $('#dash').hidden = true; me = null; meP = null; owner = false; board = false; canAdmin = false; if (channel) sb.removeChannel(channel); channel = null; boot(); }
 });
 
 function showRecover(){
