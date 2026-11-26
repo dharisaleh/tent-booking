@@ -277,6 +277,7 @@ select.f{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px
 .hprog{height:8px;background:var(--freebg2);border-radius:99px;overflow:hidden;margin-top:10px}.hprog i{display:block;height:100%;background:var(--bk);border-radius:99px}
 .hpct{font-size:12px;color:var(--mut);margin-top:4px}
 .stat.m{flex-wrap:wrap}.stat .rh{flex-basis:100%;font-style:normal;font-weight:800;font-size:13px;background:rgba(255,255,255,.7);border-radius:8px;padding:3px 6px;margin-top:6px;text-align:center}
+.liverow{display:flex;justify-content:center;margin:4px 0 6px}
 .live{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:4px 10px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;color:var(--mut)}
 .live i{width:9px;height:9px;border-radius:50%;background:#bbb;flex:none}
 .live.on{color:var(--bk);border-color:#bfe6cd;background:var(--bkbg)}.live.on i{background:#1fbf5f;animation:livep 1.6s infinite}
@@ -344,7 +345,6 @@ header h1{display:flex;align-items:center;gap:8px}
 <div class="wrap" id="app" hidden>
   <header>
     <h1><img src="logo.png" alt="المقاهي الشعبية" class="hlogo"> حجز <span>الخيام</span></h1>
-    <button class="live wait" id="liveB" title="حالة الاتصال المباشر"><i></i><span>يتصل…</span></button>
     <button class="icon" id="bell" title="التنبيه الصوتي">🔕</button>
     <button class="icon" id="dashBtn" title="لوحة التحكم" hidden>📊</button>
     <button class="icon" id="acct" title="حسابي">👤</button>
@@ -534,7 +534,7 @@ function render(){
     html += `<button class="tent ${st.s}" data-n="${n}"><div class="n">خيمة ${n}<span class="pill">${ST_LABEL[st.s]}</span></div>
       ${strip(cafe, n, H)}<div class="meta">${lines || (canBook(cafe) ? 'ما عليها حجز · اضغط للحجز' : 'ما عليها حجز')}</div></button>`;
   }
-  grid.innerHTML = `<div style="grid-column:1/-1"><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div></div>` + html;
+  grid.innerHTML = `<div style="grid-column:1/-1"><div class="liverow"><button class="live wait" id="liveB" title="حالة الاتصال المباشر"><i></i><span>يتصل…</span></button></div><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div></div>` + html;
   bindTentClicks(cafe, '.tent');
 }
 
@@ -870,7 +870,7 @@ function renderMap(cafe, total, H){
   const mapW = Math.round(W * (L.wratio || 1) * Z), mapH = Math.round(baseH * Z);  // عرض اللوحة (المالك يقدر يعرّضها)
   const old = $('#mapwrap'), keep = old ? { l: old.scrollLeft, t: old.scrollTop } : null;
   const crowded = total > 20;
-  let h = `<div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div><div class="zoombar"><button class="mini" id="zOut">🔍➖</button><span>${Math.round(Z * 100)}%</span><button class="mini" id="zIn">🔍➕</button><button class="mini" id="zFit">عرض الكل</button></div><div class="mapwrap" id="mapwrap"><div class="map ${editing ? 'edit mode-' + editMode : ''} ${crowded ? 'crowd' : ''}" id="map" style="--s:${S}px;aspect-ratio:auto;width:${mapW}px;height:${mapH}px;max-height:none">`;
+  let h = `<div class="liverow"><button class="live wait" id="liveB" title="حالة الاتصال المباشر"><i></i><span>يتصل…</span></button></div><div class="legend"><span style="--c:var(--bk)">محجوزة</span><span style="--c:var(--freec)">فاضية</span><span style="--c:var(--soon)">قرب يخلص</span><span class="lo" style="--c:var(--over)">خلص الوقت</span></div><div class="zoombar"><button class="mini" id="zOut">🔍➖</button><span>${Math.round(Z * 100)}%</span><button class="mini" id="zIn">🔍➕</button><button class="mini" id="zFit">عرض الكل</button></div><div class="mapwrap" id="mapwrap"><div class="map ${editing ? 'edit mode-' + editMode : ''} ${crowded ? 'crowd' : ''}" id="map" style="--s:${S}px;aspect-ratio:auto;width:${mapW}px;height:${mapH}px;max-height:none">`;
   h += areasHtml(L.areas, editing);
   L.marks.forEach((m, i) => {
     h += `<div class="mark" data-drag data-m="${i}" style="left:${Number(m.x)||50}%;top:${Number(m.y)||50}%">${esc(m.t)}${editing ? `<i data-x="${i}">×</i>` : ''}</div>`;
@@ -1534,9 +1534,9 @@ async function fetchAll(make){
 function openDash(){ $('#app').hidden = true; $('#dash').hidden = false; window.scrollTo(0, 0); drawDash(null); loadDash(); }
 function closeDash(){ $('#dash').hidden = true; $('#app').hidden = false; render(); }
 $('#dashBtn').onclick = openDash;
-$('#liveB').onclick = () => { const on = liveOk && navigator.onLine, t = lastSync ? new Date(lastSync).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+document.addEventListener('click', e => { if (!e.target.closest('#liveB')) return; const on = liveOk && navigator.onLine, t = lastSync ? new Date(lastSync).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
   toast(on ? 'soon' : 'over', on ? '🟢 الصفحة لايف' : '🔴 الصفحة مو لايف', on ? 'أي حجز أو دفع ينسجل من أي جهاز يطلع عندك على طول · آخر تحديث ' + t : 'تأكد من النت، وإذا ما رجعت خضرا سكّر البرنامج وافتحه · آخر تحديث ' + t, null, 5000);
-  if (me){ loadBookings().catch(()=>{}); if (!liveOk) startRealtime(); } };
+  if (me){ loadBookings().catch(()=>{}); if (!liveOk) startRealtime(); } });
 
 let dashSeq = 0;
 async function loadDash(){
@@ -1889,6 +1889,8 @@ function paintLive(){
   b.querySelector('span').textContent = st === 'on' ? 'مباشر' : st === 'off' ? 'ما فيه نت' : 'يتصل…';
   b.title = (st === 'on' ? 'الصفحة لايف: أي حجز ينضاف يطلع لك على طول' : 'الصفحة مو لايف الحين') + (t ? ' · آخر تحديث ' + t : '');
 }
+// العلامة تنرسم مع الكروكي، فنلوّنها بعد كل رسم
+{ const r0 = render; render = function(){ const out = r0.apply(this, arguments); paintLive(); return out; }; }
 window.addEventListener('online', () => { paintLive(); if (me){ startRealtime(); loadBookings().catch(()=>{}); } });
 window.addEventListener('offline', paintLive);
 function refreshOpenTent(){
