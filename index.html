@@ -139,6 +139,10 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .onl{display:flex;align-items:center;gap:10px;background:var(--bg2,#f6f1e7);border-radius:14px;padding:12px;margin:10px 0}
 .onl>div{flex:1;display:flex;flex-direction:column;gap:3px}.onl small{color:var(--mut);font-size:13px}
 .extopts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}.extopts .btn{margin:0;display:flex;flex-direction:column;gap:2px;padding:10px}.extopts small{font-size:12px;opacity:.75;font-weight:600}
+.mvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;margin:8px 0}
+.mvgrid button{border:2px solid #bfe6cd;background:var(--freebg2);border-radius:10px;padding:10px 0;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+.mvgrid button.b{opacity:.35;cursor:not-allowed}.mvgrid button.on{background:var(--bk);color:#fff;border-color:var(--bk)}
+.ck{display:flex;align-items:center;gap:8px;font-weight:600;margin:6px 0}.ck input{width:20px;height:20px;accent-color:var(--acc)}
 .price:empty{display:none}
 .endline{margin:6px 0 2px;font-size:15px;color:var(--ink)}
 .price{background:var(--acc2);color:var(--acc);border-radius:12px;padding:10px 12px;margin-top:12px;display:flex;justify-content:space-between;font-weight:800}
@@ -403,6 +407,8 @@ const EMAIL_DOMAIN = 'staff.tent-booking.app';
 const sb = window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
 let db = true, me = null, meP = null, canAdmin = false, owner = false, board = false, readOnly = false, people = {};
 function canBook(c){ return !!c && !!meP && (owner || (meP.can_book && meP.cafe_id === c.id)); }
+// مميزات إضافية: move = تبديل الخيمة، cancel = إلغاء أي حجز، refund = إرجاع الفلوس
+function perm(k, c){ return owner || (!!c && !!meP && meP.role === 'staff' && meP.can_book && meP.cafe_id === c.id && !!meP['can_' + k]); }
 async function q(p){ const { data, error } = await p; if (error) throw error; return data; }
 function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.tent, start: r.start_m != null ? r.start_m / 60 : r.start_h, end: r.end_m != null ? r.end_m / 60 : r.end_h, name: r.name,
   phone: r.phone || '', people: r.people, note: r.note || '', rate: Number(r.rate), price: Number(r.price), done: r.done,
@@ -589,7 +595,7 @@ function openTent(cafe, n){
     else pay = `<div class="pay ok">✅ مدفوع ${money(b.paidAmount)} · ${PM[b.payMethod] || ''} · <span>${esc(pname(b.paidBy))}</span></div>`;
     let payBtns = '';
     if (!RO && left > 0) payBtns = `<div class="actions"><button class="btn green" data-pay="${esc(b.id)}" data-m="cash">💵 قبض ${money(left)} كاش</button><button class="btn green" data-pay="${esc(b.id)}" data-m="knet">💳 كي نت</button></div>`;
-    if (owner && b.paid) payBtns += `<div class="actions"><button class="btn ghost" data-unpay="${esc(b.id)}">↩️ إلغاء الدفع (المالك)</button></div>`;
+    if (!RO && b.paid && perm('refund', cafe)) payBtns += `<div class="actions"><button class="btn ghost" data-unpay="${esc(b.id)}">↩️ إرجاع الفلوس للزبون</button></div>`;
     const lockEdit = b.paid && !owner;
     if (b.source === 'online'){
       const dl = bStart(b, cafe) * 60 - 30;
@@ -603,7 +609,16 @@ function openTent(cafe, n){
       <br><span data-by="${esc(b.by || '')}" data-at="${esc(b.at || '')}" data-src="${esc(b.source)}">سجّله: …</span></div>
       ${pay}${payBtns}
       ${extra ? `<div class="actions">${extra}</div>` : ''}
-      ${RO ? '' : lockEdit ? '<div class="m" style="margin-top:6px">🔒 الحجز مدفوع: التعديل والإلغاء للمالك بس.</div>' : !(owner || b.by === me) ? `<div class="m" style="margin-top:6px">🔒 التعديل والإلغاء لـ ${esc(pname(b.by))} اللي سجّل الحجز، أو المالك.</div>` : `<div class="actions"><button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button><button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button></div>`}</div>`;
+      ${RO ? '' : (() => {
+        const mine = owner || b.by === me;
+        const canEd = mine && !lockEdit, canDel = owner || (!b.paid && (mine || perm('cancel', cafe))), canMv = owner || perm('move', cafe) || (mine && !b.paid);
+        const btns = (canEd ? `<button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button>` : '')
+          + (canMv ? `<button class="btn ghost" data-mv="${esc(b.id)}">🔀 تبديل الخيمة</button>` : '')
+          + (canDel ? `<button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button>` : '');
+        const why = !canEd && !canDel ? (b.paid && !owner ? (perm('refund', cafe) ? '🔒 الحجز مدفوع: لو تبي تلغيه رجّع الفلوس أول.' : '🔒 الحجز مدفوع: التعديل والإلغاء للمالك بس.')
+          : `🔒 التعديل والإلغاء لـ ${esc(pname(b.by))} اللي سجّل الحجز، أو المالك.`) : '';
+        return (btns ? `<div class="actions">${btns}</div>` : '') + (why ? `<div class="m" style="margin-top:6px">${why}</div>` : '');
+      })()}</div>`;
   }).join('');
   openSheet(`<h2>خيمة ${n}</h2><div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
     <div class="sub" style="margin:0">${RO ? 'الأوقات (اطلاع فقط):' : 'اضغط على ساعة فاضية للحجز:'}</div>
@@ -630,7 +645,7 @@ function openTent(cafe, n){
     catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
   });
   $('#sheet').querySelectorAll('[data-unpay]').forEach(b => b.onclick = async () => {
-    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد تلغي الدفع؟'; return; }
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد؟ رجّعت الفلوس للزبون؟'; return; }
     b.disabled = true;
     try { await q(sb.from('bookings').update({ paid: false }).eq('id', b.dataset.unpay)); await loadBookings(); }
     catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
@@ -641,6 +656,7 @@ function openTent(cafe, n){
     catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; }
   });
   $('#sheet').querySelectorAll('[data-ext]').forEach(b => b.onclick = () => { const bk = list.find(x => x.id === b.dataset.ext); if (bk) openExtend(cafe, n, bk); });
+  $('#sheet').querySelectorAll('[data-mv]').forEach(b => b.onclick = () => { const bk = list.find(x => x.id === b.dataset.mv); if (bk) openMove(cafe, n, bk); });
   $('#sheet').querySelectorAll('[data-by]').forEach(el => {
     const nm = !el.dataset.by && el.dataset.src === 'online' ? '🌐 الزبون من الموقع' : pname(el.dataset.by);
     const at = Number(el.dataset.at);
@@ -659,6 +675,27 @@ function firstFree(cafe, n, from){
   return C.open;
 }
 
+// 🔀 تبديل الخيمة: ينقل الحجز لخيمة فاضية بنفس الوقت
+function openMove(cafe, n, bk){
+  const st = bStart(bk, cafe), en = bEnd(bk, cafe), N = tentsOf(cafe);
+  const freeT = t => !bookings.some(x => x.cafeId === cafe.id && x.tent === t && x.id !== bk.id && x.name && bStart(x, cafe) < en - 1e-9 && st < bEnd(x, cafe) - 1e-9);
+  let grid = ''; for (let t = 1; t <= N; t++){ if (t === n) continue; const f = freeT(t);
+    grid += `<button class="${f ? '' : 'b'}" data-to="${t}" ${f ? '' : 'disabled'}>${t}</button>`; }
+  openSheet(`<h2>🔀 تبديل خيمة ${n}</h2>
+    <div class="sub">${esc(bk.name)} · من ${hl(st)} لين ${hl(en)}<br>اختار الخيمة الجديدة (الرمادية محجوزة بهالوقت):</div>
+    <div class="mvgrid">${grid}</div>
+    <div class="err" id="ferr"></div>
+    <div class="actions"><button class="btn ghost" type="button" id="cx">رجوع</button></div>`);
+  $('#cx').onclick = () => openTent(cafe, n);
+  $('#sheet').querySelectorAll('[data-to]').forEach(b => b.onclick = async () => {
+    const to = Number(b.dataset.to);
+    if (b.dataset.sure !== '1'){ $('#sheet').querySelectorAll('[data-to]').forEach(x => { x.dataset.sure = ''; x.classList.remove('on'); }); b.dataset.sure = '1'; b.classList.add('on'); $('#ferr').textContent = `اضغط خيمة ${to} مرة ثانية عشان تأكد النقل.`; return; }
+    $('#sheet').querySelectorAll('button').forEach(x => x.disabled = true);
+    try { await q(sb.from('bookings').update({ tent: to }).eq('id', bk.id)); await loadBookings();
+      setTimeout(() => { const c = cafes.find(x => x.id === cafe.id); if (c) openTent(c, to); }, 150);
+    } catch(err){ $('#ferr').textContent = errText(err); $('#sheet').querySelectorAll('button').forEach(x => x.disabled = false); }
+  });
+}
 // ⏱️ تمديد: تختار كم تزيد أو تكتب وقت النهاية الجديد
 function openExtend(cafe, n, bk){
   const C = cfg(cafe), st = bStart(bk, cafe), en = bEnd(bk, cafe), rate = Number(bk.rate) || C.price;
@@ -1357,7 +1394,7 @@ function openUsers(){
   const list = Object.values(people).sort((a,b) => (a.role === 'owner' ? -1 : 0) - (b.role === 'owner' ? -1 : 0) || a.display_name.localeCompare(b.display_name, 'ar'))
     .map(p => {
       const c = cafes.find(x => x.id === p.cafe_id);
-      const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : p.role === 'board' ? '📊 عضو مجلس إدارة · يشوف التحليلات بس' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط') + (p.role !== 'staff' ? '' : (p.see_all ? ' · 🌐 يشوف كل المقاهي' : ' · 🏪 يشوف مقهاه بس'));
+      const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : p.role === 'board' ? '📊 عضو مجلس إدارة · يشوف التحليلات بس' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط') + (p.role === 'staff' && p.can_book ? (p.can_move ? ' · 🔀' : '') + (p.can_cancel ? ' · 🗑️' : '') + (p.can_refund ? ' · ↩️' : '') : '') + (p.role !== 'staff' ? '' : (p.see_all ? ' · 🌐 يشوف كل المقاهي' : ' · 🏪 يشوف مقهاه بس'));
       return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small></div>
         <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
     }).join('');
@@ -1373,6 +1410,10 @@ function openUsers(){
       <div id="staffOnly">
         <label>المقهى</label><select class="f" name="cafe">${cafeOpts('')}</select>
         <label>الصلاحية</label><select class="f" name="perm"><option value="view">👁️ اطلاع فقط</option><option value="book">✅ يضيف حجوزات بمقهاه</option></select>
+        <div id="xperm"><label>مميزات إضافية</label>
+          <label class="ck"><input type="checkbox" name="can_move"> 🔀 تبديل الخيام (ينقل أي حجز لخيمة ثانية)</label>
+          <label class="ck"><input type="checkbox" name="can_cancel"> 🗑️ إلغاء أي حجز بمقهاه</label>
+          <label class="ck"><input type="checkbox" name="can_refund"> ↩️ إرجاع الفلوس للزبون</label></div>
         <label>يشوف</label><select class="f" name="scope"><option value="own">🏪 مقهاه بس</option><option value="all">🌐 كل المقاهي</option></select>
       </div>
       <div class="err" id="ferr"></div>
@@ -1382,6 +1423,7 @@ function openUsers(){
   bindSeg();
   const form = $('#uf');
   form.role.onchange = () => { $('#staffOnly').hidden = form.role.value !== 'staff'; };
+  const xp = () => { $('#xperm').hidden = form.perm.value !== 'book'; }; form.perm.onchange = xp; xp();
   $('#sheet').querySelectorAll('[data-ue]').forEach(b => b.onclick = () => {
     const p = people[b.dataset.ue]; if (!p) return;
     form.uid.value = p.id; form.dname.value = p.display_name; form.uname.value = p.username; form.uname.disabled = true;
@@ -1389,6 +1431,7 @@ function openUsers(){
     $('#roleBox').hidden = p.role === 'owner'; form.role.value = p.role === 'board' ? 'board' : 'staff';
     $('#staffOnly').hidden = p.role !== 'staff';
     form.cafe.value = p.cafe_id || ''; form.perm.value = p.can_book ? 'book' : 'view'; form.scope.value = p.see_all ? 'all' : 'own';
+    form.can_move.checked = !!p.can_move; form.can_cancel.checked = !!p.can_cancel; form.can_refund.checked = !!p.can_refund; xp();
     $('#uft').textContent = '✏️ تعديل: ' + p.display_name; form.dname.focus();
   });
   $('#sheet').querySelectorAll('[data-ud]').forEach(b => b.onclick = async () => {
@@ -1403,11 +1446,12 @@ function openUsers(){
     const id = form.uid.value, role = form.role.value, isB = role === 'board';
     const cafe_id = isB ? null : (form.cafe.value || null), can_book = !isB && form.perm.value === 'book', see_all = isB || form.scope.value === 'all';
     const isOwnerEdit = id && people[id] && people[id].role === 'owner';
+    const ex = { can_move: can_book && form.can_move.checked, can_cancel: can_book && form.can_cancel.checked, can_refund: can_book && form.can_refund.checked };
     try {
       if (!isOwnerEdit && !isB && (can_book || !see_all) && !cafe_id) throw new Error('need_cafe');
       if (id) await callAdmin(isOwnerEdit ? { action: 'update', id, display_name: form.dname.value, password: form.pw.value }
-                                          : { action: 'update', id, role, display_name: form.dname.value, cafe_id, can_book, see_all, password: form.pw.value });
-      else await callAdmin({ action: 'create', role, username: form.uname.value, display_name: form.dname.value, password: form.pw.value, cafe_id, can_book, see_all });
+                                          : { action: 'update', id, role, display_name: form.dname.value, cafe_id, can_book, see_all, ...ex, password: form.pw.value });
+      else await callAdmin({ action: 'create', role, username: form.uname.value, display_name: form.dname.value, password: form.pw.value, cafe_id, can_book, see_all, ...ex });
       await loadPeople(); openUsers();
     } catch(err){
       $('#ferr').textContent = err.message === 'need_cafe' ? 'اختار مقهى الموظف.' : adminErr(err);
@@ -1868,7 +1912,7 @@ function openDeepLink(u){
 /* ---------- البيانات ---------- */
 async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order('sort'))).map(normC); cafesLoaded = true; render(); }
 async function loadPeople(){
-  const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book, see_all'));
+  const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book, see_all, can_move, can_cancel, can_refund'));
   people = {}; rows.forEach(r => people[r.id] = r);
   meP = people[me] || null; owner = !!meP && meP.role === 'owner'; board = !!meP && meP.role === 'board'; canAdmin = owner;
   render();

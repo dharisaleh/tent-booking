@@ -81,6 +81,9 @@ Deno.serve(async (req) => {
     return data ? data.id : null;
   };
 
+  // مميزات إضافية للموظف اللي يحجز: تبديل الخيمة، إلغاء أي حجز، إرجاع الفلوس
+  const extras = (ok: boolean) => ({ can_move: ok && !!body.can_move, can_cancel: ok && !!body.can_cancel, can_refund: ok && !!body.can_refund });
+
   if (action === "create") {
     const username = cleanUser(body.username), display_name = cleanName(body.display_name) || username;
     if (!USER_RE.test(username)) return json({ error: "bad_username" }, 400);
@@ -93,7 +96,8 @@ Deno.serve(async (req) => {
     const { data, error } = await admin.auth.admin.createUser({ email: emailOf(username), password: body.password, email_confirm: true });
     if (error || !data.user) return json({ error: "create_failed", detail: error?.message }, 400);
     const { error: pe } = await admin.from("profiles").insert({ id: data.user.id, username, display_name, role, cafe_id,
-      can_book: role === "staff" && !!body.can_book && !!cafe_id, see_all: role === "board" || !!body.see_all || !cafe_id });
+      can_book: role === "staff" && !!body.can_book && !!cafe_id, see_all: role === "board" || !!body.see_all || !cafe_id,
+      ...extras(role === "staff" && !!body.can_book && !!cafe_id) });
     if (pe) { await admin.auth.admin.deleteUser(data.user.id); return json({ error: "profile_failed", detail: pe.message }, 400); }
     return json({ ok: true, id: data.user.id });
   }
@@ -110,7 +114,9 @@ Deno.serve(async (req) => {
       if (body.see_all !== undefined) patch.see_all = !!body.see_all;
       if (patch.cafe_id === null){ patch.can_book = false; patch.see_all = true; }
       if (body.role === "board" || body.role === "staff") patch.role = body.role;
+      for (const k of ["can_move", "can_cancel", "can_refund"]) if (body[k] !== undefined) patch[k] = !!body[k];
       if ((patch.role ?? target.role) === "board"){ patch.cafe_id = null; patch.can_book = false; patch.see_all = true; }
+      if (patch.can_book === false){ patch.can_move = false; patch.can_cancel = false; patch.can_refund = false; }
     }
     if (Object.keys(patch).length) {
       const { error } = await admin.from("profiles").update(patch).eq("id", id);
