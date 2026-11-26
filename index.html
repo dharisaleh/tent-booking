@@ -553,6 +553,7 @@ function errText(e){
   if (e && e.message === 'range') return 'وقت النهاية لازم يكون بعد وقت البداية.';
   const c = e && e.code;
   if (c === '23P01') return 'هالوقت محجوز على هالخيمة. اختار وقت ثاني.';
+  if (/not_creator/.test((e && e.message) || '')) return 'التعديل والإلغاء للموظف اللي سجّل الحجز أو المالك بس.';
   if (/paid_locked/.test((e && e.message) || '')) return 'هالحجز مدفوع، ما يصير تعدّله أو تحذفه. كلّم المالك.';
   if (c === '42501' || /row-level security|permission/i.test((e && e.message) || '')) return 'ما عندك صلاحية تعدّل هني.';
   return 'صار خطأ، تأكد من النت وجرب مرة ثانية.';
@@ -602,7 +603,7 @@ function openTent(cafe, n){
       <br><span data-by="${esc(b.by || '')}" data-at="${esc(b.at || '')}" data-src="${esc(b.source)}">سجّله: …</span></div>
       ${pay}${payBtns}
       ${extra ? `<div class="actions">${extra}</div>` : ''}
-      ${RO ? '' : lockEdit ? '<div class="m" style="margin-top:6px">🔒 الحجز مدفوع: التعديل والإلغاء للمالك بس.</div>' : `<div class="actions"><button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button><button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button></div>`}</div>`;
+      ${RO ? '' : lockEdit ? '<div class="m" style="margin-top:6px">🔒 الحجز مدفوع: التعديل والإلغاء للمالك بس.</div>' : !(owner || b.by === me) ? `<div class="m" style="margin-top:6px">🔒 التعديل والإلغاء لـ ${esc(pname(b.by))} اللي سجّل الحجز، أو المالك.</div>` : `<div class="actions"><button class="btn ghost" data-ed="${esc(b.id)}">✏️ تعديل</button><button class="btn danger" data-del="${esc(b.id)}">🗑️ إلغاء</button></div>`}</div>`;
   }).join('');
   openSheet(`<h2>خيمة ${n}</h2><div class="sub">${esc(cafe.name)} · ${esc($('#dlabel').textContent)}</div>
     <div class="sub" style="margin:0">${RO ? 'الأوقات (اطلاع فقط):' : 'اضغط على ساعة فاضية للحجز:'}</div>
