@@ -139,6 +139,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .onl{display:flex;align-items:center;gap:10px;background:var(--bg2,#f6f1e7);border-radius:14px;padding:12px;margin:10px 0}
 .onl>div{flex:1;display:flex;flex-direction:column;gap:3px}.onl small{color:var(--mut);font-size:13px}
 .extopts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}.extopts .btn{margin:0;display:flex;flex-direction:column;gap:2px;padding:10px}.extopts small{font-size:12px;opacity:.75;font-weight:600}
+.cafeRow small.seen{display:block;font-size:12px;color:var(--mut);margin-top:2px}
 .mvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;margin:8px 0}
 .mvgrid button{border:2px solid #bfe6cd;background:var(--freebg2);border-radius:10px;padding:10px 0;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
 .mvgrid button.b{opacity:.35;cursor:not-allowed}.mvgrid button.on{background:var(--bk);color:#fff;border-color:var(--bk)}
@@ -417,6 +418,21 @@ function normB(r){ return { id: r.id, cafeId: r.cafe_id, date: r.date, tent: r.t
 const PM = { cash: '💵 كاش', knet: '💳 كي نت' };
 function due(b){ return Math.max(0, Math.round((Number(b.price) - (b.paid ? b.paidAmount : 0)) * 1000) / 1000); }
 function normC(r){ return { id: r.id, name: r.name, tents: r.tents, price: Number(r.price), open: r.open, close: r.close, layout: r.layout || {}, order: r.sort, soon: r.soon_min }; }
+// 👁️ آخر ظهور: البرنامج يسجّل إن الموظف موجود كل دقيقة وهو فاتح الصفحة
+function seenTxt(t){
+  if (!t) return '⚪ ما دخل للحين';
+  const d = new Date(t), m = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (m < 3) return '🟢 متصل الحين';
+  if (m < 60) return '🕒 آخر ظهور: قبل ' + m + ' دقيقة';
+  const tm = d.toLocaleTimeString('ar-KW-u-nu-latn', { hour: 'numeric', minute: '2-digit' });
+  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(), dd = Math.round((day(new Date()) - day(d)) / 864e5);
+  if (dd === 0) return '🕒 آخر ظهور: اليوم ' + tm;
+  if (dd === 1) return '🕒 آخر ظهور: أمس ' + tm;
+  return '🕒 آخر ظهور: ' + d.toLocaleDateString('ar-KW-u-nu-latn', { day: 'numeric', month: 'short' }) + ' ' + tm;
+}
+const touchSeen = () => { if (me && !document.hidden) sb.rpc('touch_seen').then(() => {}, () => {}); };
+setInterval(touchSeen, 60000);
+document.addEventListener('visibilitychange', touchSeen);
 function pname(id){ return (people[id] && people[id].display_name) || 'موظف'; }
 let cafes = [], bookings = [], selCafe = null, selDate = dstr(new Date()), selHour = null;
 let cafesLoaded = false, unsubB = null, loadTimer = null;
@@ -1395,7 +1411,7 @@ function openUsers(){
     .map(p => {
       const c = cafes.find(x => x.id === p.cafe_id);
       const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : p.role === 'board' ? '📊 عضو مجلس إدارة · يشوف التحليلات بس' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط') + (p.role === 'staff' && p.can_book ? (p.can_move ? ' · 🔀' : '') + (p.can_cancel ? ' · 🗑️' : '') + (p.can_refund ? ' · ↩️' : '') : '') + (p.role !== 'staff' ? '' : (p.see_all ? ' · 🌐 يشوف كل المقاهي' : ' · 🏪 يشوف مقهاه بس'));
-      return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small></div>
+      return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small><small class="seen">${seenTxt(p.last_seen)}</small></div>
         <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
     }).join('');
   openSheet(`${segHtml('users')}
@@ -1912,9 +1928,9 @@ function openDeepLink(u){
 /* ---------- البيانات ---------- */
 async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order('sort'))).map(normC); cafesLoaded = true; render(); }
 async function loadPeople(){
-  const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book, see_all, can_move, can_cancel, can_refund'));
+  const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book, see_all, can_move, can_cancel, can_refund, last_seen'));
   people = {}; rows.forEach(r => people[r.id] = r);
-  meP = people[me] || null; owner = !!meP && meP.role === 'owner'; board = !!meP && meP.role === 'board'; canAdmin = owner;
+  const firstSeen = !meP; meP = people[me] || null; if (firstSeen && meP) touchSeen(); owner = !!meP && meP.role === 'owner'; board = !!meP && meP.role === 'board'; canAdmin = owner;
   render();
 }
 let bLoadSeq = 0;
