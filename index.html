@@ -139,6 +139,8 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .onl{display:flex;align-items:center;gap:10px;background:var(--bg2,#f6f1e7);border-radius:14px;padding:12px;margin:10px 0}
 .onl>div{flex:1;display:flex;flex-direction:column;gap:3px}.onl small{color:var(--mut);font-size:13px}
 .extopts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}.extopts .btn{margin:0;display:flex;flex-direction:column;gap:2px;padding:10px}.extopts small{font-size:12px;opacity:.75;font-weight:600}
+.cafeRow small.devs{display:block;font-size:12px;color:var(--mut);margin-top:3px}.cafeRow small.devs b{display:block;color:var(--ink)}.cafeRow small.devs span{display:block}
+.cafeRow small.devs.many b{color:var(--over)}
 .cafeRow small.seen{display:block;font-size:12px;color:var(--mut);margin-top:2px}
 .mvgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;margin:8px 0}
 .mvgrid button{border:2px solid #bfe6cd;background:var(--freebg2);border-radius:10px;padding:10px 0;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
@@ -1418,12 +1420,27 @@ const ADMIN_ERR = { bad_username: 'اسم المستخدم لازم يكون ب�
 const adminErr = e => ADMIN_ERR[e && e.message] || 'صار خطأ، تأكد من النت وجرب مرة ثانية.';
 
 function cafeOpts(sel){ return '<option value="">— بدون مقهى —</option>' + cafes.map(c => `<option value="${esc(c.id)}" ${c.id===sel?'selected':''}>${esc(c.name)}</option>`).join(''); }
+// 📱 كم جهاز داخل عليه كل مستخدم (جلسات الدخول المفتوحة آخر 7 أيام)
+function devName(ua){ ua = ua || '';
+  if (/iPhone/i.test(ua)) return '📱 آيفون'; if (/iPad/i.test(ua)) return '📱 آيباد'; if (/Android/i.test(ua)) return '📱 أندرويد';
+  if (/Windows/i.test(ua)) return '💻 كمبيوتر ويندوز'; if (/Macintosh|Mac OS/i.test(ua)) return '💻 ماك'; return '🖥️ جهاز'; }
+async function fillDevices(){
+  let rows = []; try { rows = await q(sb.rpc('user_devices')); } catch(_){ return; }
+  const by = {}; (rows || []).forEach(r => (by[r.u] = by[r.u] || []).push(r));
+  document.querySelectorAll('[data-dev]').forEach(el => {
+    const L = by[el.dataset.dev] || [];
+    if (!L.length){ el.textContent = '📵 مو داخل على أي جهاز'; return; }
+    el.innerHTML = `<b>${L.length === 1 ? '📲 داخل على جهاز واحد' : '📲 داخل على ' + L.length + ' أجهزة'}</b>` + L.map(d => `<span>${devName(d.ua)} · ${seenTxt(d.at).replace(/^[^ ]+ /, '')}</span>`).join('');
+    if (L.length > 1) el.classList.add('many');
+  });
+}
 function openUsers(){
+  setTimeout(fillDevices, 0);
   const list = Object.values(people).sort((a,b) => (a.role === 'owner' ? -1 : 0) - (b.role === 'owner' ? -1 : 0) || a.display_name.localeCompare(b.display_name, 'ar'))
     .map(p => {
       const c = cafes.find(x => x.id === p.cafe_id);
       const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : p.role === 'board' ? '📊 عضو مجلس إدارة · يشوف التحليلات بس' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط') + (p.role === 'staff' && p.can_book ? (p.can_move ? ' · 🔀' : '') + (p.can_cancel ? ' · 🗑️' : '') + (p.can_refund ? ' · ↩️' : '') : '') + (p.role !== 'staff' ? '' : (p.see_all ? ' · 🌐 يشوف كل المقاهي' : ' · 🏪 يشوف مقهاه بس'));
-      return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small><small class="seen">${seenTxt(p.last_seen)}</small></div>
+      return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small><small class="seen">${seenTxt(p.last_seen)}</small><small class="devs" data-dev="${esc(p.id)}"></small></div>
         <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini" data-uk="${esc(p.id)}" title="يطلّعه من كل الجوالات">🚪 طلّعه</button><button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
     }).join('');
   openSheet(`${segHtml('users')}
