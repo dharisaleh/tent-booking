@@ -430,6 +430,12 @@ function seenTxt(t){
   if (dd === 1) return '🕒 آخر ظهور: أمس ' + tm;
   return '🕒 آخر ظهور: ' + d.toLocaleDateString('ar-KW-u-nu-latn', { day: 'numeric', month: 'short' }) + ' ' + tm;
 }
+// تسجيل خروج من هالجوال بس (ما يطلّع الجوالات الثانية)، ويمسح الجلسة حتى لو السيرفر رد بخطأ
+async function hardSignOut(){
+  try { await sb.auth.signOut({ scope: 'local' }); } catch(_){}
+  try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch(_){}
+  location.reload();
+}
 // لو المالك طلّع هالمستخدم من كل الأجهزة، الجلسة تنشال، فنطلّعه على طول
 let kickedOut = false, kickMsg = '';
 const touchSeen = () => { if (!me || document.hidden || kickedOut) return;
@@ -2024,7 +2030,7 @@ async function enterApp(session){
   $('#auth').hidden = true; $('#app').hidden = false;
   try {
     await loadPeople();
-    if (!meP){ await sb.auth.signOut(); return showAuth('login', 'هالحساب ما له صلاحية على البرنامج.'); }
+    if (!meP){ await sb.auth.signOut({ scope: 'local' }).catch(() => {}); return showAuth('login', 'هالحساب ما له صلاحية على البرنامج.'); }
     await loadCafes();
     subscribeBookings();
     startRealtime();
@@ -2084,7 +2090,7 @@ function openAccount(){
     <div class="tones">${Object.entries(TONES).map(([k, v]) => `<div class="tone ${k === toneKey ? 'on' : ''}" data-tone="${k}"><span>${v.t}</span><button class="mini" data-play="${k}:soon" type="button">▶️ قرب يخلص</button><button class="mini" data-play="${k}:over" type="button">▶️ خلص</button></div>`).join('')}</div><hr>
     <div class="actions"><button class="btn danger" id="lo">🚪 تسجيل خروج</button><button class="btn ghost" id="cx">إغلاق</button></div>`);
   $('#cx').onclick = closeSheet;
-  $('#lo').onclick = async () => { closeSheet(); await pushOff(true); await sb.auth.signOut(); };
+  $('#lo').onclick = async () => { closeSheet(); try { await pushOff(true); } catch(_){} await hardSignOut(); };
   drawPushBox();
   $('#sheet').querySelectorAll('[data-tone]').forEach(el => el.onclick = e => { if (e.target.closest('[data-play]')) return;
     setTone(el.dataset.tone); $('#sheet').querySelectorAll('[data-tone]').forEach(x => x.classList.toggle('on', x === el)); testTone('soon');
