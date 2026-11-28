@@ -430,7 +430,13 @@ function seenTxt(t){
   if (dd === 1) return '🕒 آخر ظهور: أمس ' + tm;
   return '🕒 آخر ظهور: ' + d.toLocaleDateString('ar-KW-u-nu-latn', { day: 'numeric', month: 'short' }) + ' ' + tm;
 }
-const touchSeen = () => { if (me && !document.hidden) sb.rpc('touch_seen').then(() => {}, () => {}); };
+// لو المالك طلّع هالمستخدم من كل الأجهزة، الجلسة تنشال، فنطلّعه على طول
+let kickedOut = false, kickMsg = '';
+const touchSeen = () => { if (!me || document.hidden || kickedOut) return;
+  sb.rpc('touch_seen').then(({ data }) => { if (data === false && me && !kickedOut){ kickedOut = true;
+    try { pushOff(true); } catch(_){}
+    kickMsg = '🚪 المالك طلّعك من البرنامج. ادخل مرة ثانية باسمك ورقمك السري.';
+    sb.auth.signOut({ scope: 'local' }).finally(() => { kickedOut = false; }); } }, () => {}); };
 setInterval(touchSeen, 60000);
 document.addEventListener('visibilitychange', touchSeen);
 function pname(id){ return (people[id] && people[id].display_name) || 'موظف'; }
@@ -1412,7 +1418,7 @@ function openUsers(){
       const c = cafes.find(x => x.id === p.cafe_id);
       const tag = p.role === 'owner' ? '👑 المالك · كل المقاهي' : p.role === 'board' ? '📊 عضو مجلس إدارة · يشوف التحليلات بس' : (c ? esc(c.name) + ' · ' + (p.can_book ? '✅ يحجز' : '👁️ اطلاع فقط') : '👁️ اطلاع فقط') + (p.role === 'staff' && p.can_book ? (p.can_move ? ' · 🔀' : '') + (p.can_cancel ? ' · 🗑️' : '') + (p.can_refund ? ' · ↩️' : '') : '') + (p.role !== 'staff' ? '' : (p.see_all ? ' · 🌐 يشوف كل المقاهي' : ' · 🏪 يشوف مقهاه بس'));
       return `<div class="cafeRow"><div><b>${esc(p.display_name)}</b><small dir="ltr" style="text-align:right">${esc(p.username)}</small><small class="mn">${tag}</small><small class="seen">${seenTxt(p.last_seen)}</small></div>
-        <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
+        <button class="mini" data-ue="${esc(p.id)}">تعديل</button>${p.role === 'owner' ? '' : `<button class="mini" data-uk="${esc(p.id)}" title="يطلّعه من كل الجوالات">🚪 طلّعه</button><button class="mini d" data-ud="${esc(p.id)}">حذف</button>`}</div>`;
     }).join('');
   openSheet(`${segHtml('users')}
     <h2>👥 الموظفين</h2><div class="sub">كل موظف يدخل باسم مستخدم ورقم سري. حدد مقهاه وهل يقدر يحجز أو يشوف بس.</div>
@@ -1449,6 +1455,13 @@ function openUsers(){
     form.cafe.value = p.cafe_id || ''; form.perm.value = p.can_book ? 'book' : 'view'; form.scope.value = p.see_all ? 'all' : 'own';
     form.can_move.checked = !!p.can_move; form.can_cancel.checked = !!p.can_cancel; form.can_refund.checked = !!p.can_refund; xp();
     $('#uft').textContent = '✏️ تعديل: ' + p.display_name; form.dname.focus();
+  });
+  $('#sheet').querySelectorAll('[data-uk]').forEach(b => b.onclick = async () => {
+    const p = people[b.dataset.uk]; if (!p) return;
+    if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد؟'; return; }
+    b.disabled = true;
+    try { await q(sb.rpc('kick_user', { p_id: p.id })); toast('soon', '🚪 طلّعت ' + p.display_name, 'انطلع من كل الجوالات، ويقدر يدخل مرة ثانية برقمه السري', null, 5000); b.textContent = '✅ انطلع'; }
+    catch(err){ $('#ferr').textContent = errText(err); b.disabled = false; b.textContent = '🚪 طلّعه'; }
   });
   $('#sheet').querySelectorAll('[data-ud]').forEach(b => b.onclick = async () => {
     if (b.dataset.sure !== '1'){ b.dataset.sure = '1'; b.textContent = 'متأكد؟'; return; }
@@ -1928,9 +1941,9 @@ function openDeepLink(u){
 /* ---------- البيانات ---------- */
 async function loadCafes(){ cafes = (await q(sb.from('cafes').select('*').order('sort'))).map(normC); cafesLoaded = true; render(); }
 async function loadPeople(){
-  const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book, see_all, can_move, can_cancel, can_refund, last_seen'));
+  const rows = await q(sb.from('profiles').select('id, username, display_name, role, cafe_id, can_book, see_all, can_move, can_cancel, can_refund, last_seen, kicked_at'));
   people = {}; rows.forEach(r => people[r.id] = r);
-  const firstSeen = !meP; meP = people[me] || null; if (firstSeen && meP) touchSeen(); owner = !!meP && meP.role === 'owner'; board = !!meP && meP.role === 'board'; canAdmin = owner;
+  const prevKick = meP && meP.kicked_at; meP = people[me] || null; if (meP && (!prevKick || meP.kicked_at !== prevKick)) touchSeen(); owner = !!meP && meP.role === 'owner'; board = !!meP && meP.role === 'board'; canAdmin = owner;
   render();
 }
 let bLoadSeq = 0;
@@ -1978,6 +1991,7 @@ document.addEventListener('visibilitychange', () => { if (me && !document.hidden
 
 /* ---------- الدخول ---------- */
 function showAuth(mode, msg){
+  if (mode === 'login' && !msg && kickMsg){ msg = kickMsg; kickMsg = ''; }
   $('#app').hidden = true; $('#auth').hidden = false;
   const setup = mode === 'setup';
   $('#auth').innerHTML = `<div class="authbox">
